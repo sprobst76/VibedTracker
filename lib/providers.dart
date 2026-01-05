@@ -4,12 +4,15 @@ import 'models/work_entry.dart';
 import 'models/vacation.dart';
 import 'models/settings.dart';
 import 'models/weekly_hours_period.dart';
+import 'models/pause.dart';
+import 'models/geofence_zone.dart';
 
 // Hive-Box-Provider
 final workBoxProvider = Provider((ref) => Hive.box<WorkEntry>('work'));
 final vacBoxProvider = Provider((ref) => Hive.box<Vacation>('vacation'));
 final setBoxProvider = Provider((ref) => Hive.box<Settings>('settings'));
 final weeklyHoursBoxProvider = Provider((ref) => Hive.box<WeeklyHoursPeriod>('weekly_hours_periods'));
+final geofenceZonesBoxProvider = Provider((ref) => Hive.box<GeofenceZone>('geofence_zones'));
 
 // Settings-Provider
 final settingsProvider = StateNotifierProvider<SettingsNotifier, Settings>((ref) {
@@ -128,6 +131,33 @@ class WorkEntryNotifier extends StateNotifier<List<WorkEntry>> {
 
   /// Prüft ob aktuell Arbeit läuft
   bool isWorking() => getRunningEntry() != null;
+
+  /// Kopiert einen Eintrag auf mehrere Tage
+  Future<void> copyEntryToDays(WorkEntry source, List<DateTime> targetDays) async {
+    for (final targetDay in targetDays) {
+      // Berechne die Zeitdifferenz zwischen Quell- und Zieltag
+      final sourceDate = DateTime(source.start.year, source.start.month, source.start.day);
+      final dayDiff = targetDay.difference(sourceDate);
+
+      // Neue Start- und Endzeit berechnen
+      final newStart = source.start.add(dayDiff);
+      final newStop = source.stop?.add(dayDiff);
+
+      // Neuen Eintrag erstellen mit kopierten Pausen
+      final newEntry = WorkEntry(start: newStart, stop: newStop);
+
+      // Pausen kopieren mit angepassten Zeiten
+      for (final pause in source.pauses) {
+        newEntry.pauses.add(Pause(
+          start: pause.start.add(dayDiff),
+          end: pause.end?.add(dayDiff),
+        ));
+      }
+
+      await box.add(newEntry);
+    }
+    _refresh();
+  }
 }
 
 // Vacation-Provider mit CRUD-Operationen
@@ -259,5 +289,60 @@ class WeeklyHoursPeriodsNotifier extends StateNotifier<List<WeeklyHoursPeriod>> 
   /// Gets the daily hours for a specific date (weekly / 5)
   double getDailyHoursForDate(DateTime date) {
     return getWeeklyHoursForDate(date) / 5;
+  }
+}
+
+// Geofence Zones Provider
+final geofenceZonesProvider = StateNotifierProvider<GeofenceZonesNotifier, List<GeofenceZone>>((ref) {
+  final box = ref.watch(geofenceZonesBoxProvider);
+  return GeofenceZonesNotifier(box);
+});
+
+class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
+  final Box<GeofenceZone> box;
+
+  GeofenceZonesNotifier(this.box) : super(box.values.toList());
+
+  void _refresh() {
+    state = box.values.toList();
+  }
+
+  /// Fügt eine neue Zone hinzu
+  Future<void> addZone(GeofenceZone zone) async {
+    await box.add(zone);
+    _refresh();
+  }
+
+  /// Aktualisiert eine Zone
+  Future<void> updateZone(GeofenceZone zone, {
+    String? newName,
+    double? newLatitude,
+    double? newLongitude,
+    double? newRadius,
+    bool? newIsActive,
+  }) async {
+    if (newName != null) zone.name = newName;
+    if (newLatitude != null) zone.latitude = newLatitude;
+    if (newLongitude != null) zone.longitude = newLongitude;
+    if (newRadius != null) zone.radius = newRadius;
+    if (newIsActive != null) zone.isActive = newIsActive;
+    await zone.save();
+    _refresh();
+  }
+
+  /// Löscht eine Zone
+  Future<void> deleteZone(GeofenceZone zone) async {
+    await zone.delete();
+    _refresh();
+  }
+
+  /// Prüft ob eine Position in einer aktiven Zone liegt
+  bool isInAnyActiveZone(double lat, double lng) {
+    return state.where((z) => z.isActive).any((z) => z.containsPoint(lat, lng));
+  }
+
+  /// Gibt alle aktiven Zonen zurück
+  List<GeofenceZone> getActiveZones() {
+    return state.where((z) => z.isActive).toList();
   }
 }

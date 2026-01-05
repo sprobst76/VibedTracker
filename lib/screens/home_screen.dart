@@ -12,6 +12,7 @@ import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'entry_edit_screen.dart';
+import '../widgets/copy_entry_dialog.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -223,6 +224,27 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     if (result == true) {
       ref.invalidate(workListProvider);
       ref.invalidate(workEntryProvider);
+    }
+  }
+
+  Future<void> _showCopyDialog(WorkEntry entry) async {
+    final selectedDays = await showDialog<List<DateTime>>(
+      context: context,
+      builder: (_) => CopyEntryDialog(sourceDate: entry.start),
+    );
+
+    if (selectedDays != null && selectedDays.isNotEmpty) {
+      await ref.read(workEntryProvider.notifier).copyEntryToDays(entry, selectedDays);
+      ref.invalidate(workListProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eintrag auf ${selectedDays.length} Tag(e) kopiert'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -648,6 +670,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                       ],
                     ),
                   const SizedBox(width: 8),
+                  if (entry.stop != null)
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 20),
+                      onPressed: () => _showCopyDialog(entry),
+                      tooltip: 'Kopieren',
+                    ),
                   IconButton(
                     icon: const Icon(Icons.edit, size: 20),
                     onPressed: () => _openEntryEditor(entry),
