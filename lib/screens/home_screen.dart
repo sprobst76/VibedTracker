@@ -11,6 +11,7 @@ import '../models/pause.dart';
 import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
+import 'entry_edit_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -204,7 +205,25 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openEntryEditor(null),
+        icon: const Icon(Icons.add),
+        label: const Text('Neuer Eintrag'),
+      ),
     );
+  }
+
+  Future<void> _openEntryEditor(WorkEntry? entry) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EntryEditScreen(entry: entry),
+      ),
+    );
+    if (result == true) {
+      ref.invalidate(workListProvider);
+      ref.invalidate(workEntryProvider);
+    }
   }
 
   Widget _buildStatusCard(bool running, bool isPaused, WorkEntry? entry) {
@@ -609,8 +628,11 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                     ),
                 ],
               ),
-              trailing: entry.stop != null
-                  ? Column(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (entry.stop != null)
+                    Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -624,9 +646,17 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                             style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                           ),
                       ],
-                    )
-                  : null,
+                    ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20),
+                    onPressed: () => _openEntryEditor(entry),
+                    tooltip: 'Bearbeiten',
+                  ),
+                ],
+              ),
               isThreeLine: hasPauses,
+              onTap: () => _openEntryEditor(entry),
             );
           }),
         ],

@@ -9,10 +9,13 @@ class Settings extends HiveObject {
   String locale;
   @HiveField(2)
   String? outlookIcsPath;
+  @HiveField(3)
+  bool isDarkMode;
 
   Settings({
     this.weeklyHours = 40.0,
     this.locale = 'de_DE',
     this.outlookIcsPath,
+    this.isDarkMode = false,
   });
 }

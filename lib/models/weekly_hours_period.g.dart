@@ -1,41 +1,41 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'settings.dart';
+part of 'weekly_hours_period.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class SettingsAdapter extends TypeAdapter<Settings> {
+class WeeklyHoursPeriodAdapter extends TypeAdapter<WeeklyHoursPeriod> {
   @override
-  final int typeId = 3;
+  final int typeId = 4;
 
   @override
-  Settings read(BinaryReader reader) {
+  WeeklyHoursPeriod read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Settings(
-      weeklyHours: fields[0] as double,
-      locale: fields[1] as String,
-      outlookIcsPath: fields[2] as String?,
-      isDarkMode: fields[3] as bool,
+    return WeeklyHoursPeriod(
+      startDate: fields[0] as DateTime,
+      endDate: fields[1] as DateTime?,
+      weeklyHours: fields[2] as double,
+      description: fields[3] as String?,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Settings obj) {
+  void write(BinaryWriter writer, WeeklyHoursPeriod obj) {
     writer
       ..writeByte(4)
       ..writeByte(0)
-      ..write(obj.weeklyHours)
+      ..write(obj.startDate)
       ..writeByte(1)
-      ..write(obj.locale)
+      ..write(obj.endDate)
       ..writeByte(2)
-      ..write(obj.outlookIcsPath)
+      ..write(obj.weeklyHours)
       ..writeByte(3)
-      ..write(obj.isDarkMode);
+      ..write(obj.description);
   }
 
   @override
@@ -44,7 +44,7 @@ class SettingsAdapter extends TypeAdapter<Settings> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SettingsAdapter &&
+      other is WeeklyHoursPeriodAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

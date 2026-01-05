@@ -69,11 +69,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final workEntries = ref.watch(workListProvider);
     final vacations = ref.watch(vacationProvider);
     final settings = ref.watch(settingsProvider);
+    final periodsNotifier = ref.watch(weeklyHoursPeriodsProvider.notifier);
 
     final weekData = _calculateWeekData(
       workEntries,
       vacations,
       settings.weeklyHours,
+      periodsNotifier,
     );
 
     return Scaffold(
@@ -372,17 +374,17 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   WeekData _calculateWeekData(
     List<WorkEntry> entries,
     List<Vacation> vacations,
-    double weeklyHours,
+    double defaultWeeklyHours,
+    WeeklyHoursPeriodsNotifier periodsNotifier,
   ) {
     final days = <DayData>[];
     var totalWorked = 0.0;
     var totalPause = 0.0;
+    var totalTargetHours = 0.0;
     var workDays = 0;
     var holidayCount = 0;
     var vacationCount = 0;
     var entriesCount = 0;
-
-    final dailyHours = weeklyHours / 5; // Annahme: 5-Tage-Woche
 
     for (var i = 0; i < 7; i++) {
       final day = _selectedWeekStart.add(Duration(days: i));
@@ -396,6 +398,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       // Check vacation
       final isVacation = vacations.any((v) =>
           v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
+
+      // Get daily target hours for this specific day (period-aware)
+      final dailyHours = periodsNotifier.getDailyHoursForDate(day);
 
       // Calculate worked hours for this day
       var dayWorked = 0.0;
@@ -424,6 +429,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       // Count work days (excluding weekends, holidays, vacations)
       if (!isWeekend && !isHoliday && !isVacation) {
         workDays++;
+        totalTargetHours += dailyHours;
       }
 
       if (isHoliday) holidayCount++;
@@ -448,7 +454,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       days: days,
       totalWorked: totalWorked,
       pauseHours: totalPause,
-      targetHours: workDays * dailyHours,
+      targetHours: totalTargetHours,
       workDays: workDays,
       holidayCount: holidayCount,
       vacationCount: vacationCount,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
+import 'weekly_hours_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -48,6 +49,15 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WeeklyHoursScreen()),
+                    ),
+                    icon: const Icon(Icons.schedule),
+                    label: const Text('Arbeitszeit-Perioden verwalten'),
+                  ),
                 ],
               ),
             ),
@@ -81,6 +91,38 @@ class SettingsScreen extends ConsumerWidget {
                     onChanged: (value) {
                       if (value != null) notifier.updateLocale(value);
                     },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Dark Mode Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Dark Mode',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          settings.isDarkMode ? 'Dunkles Design aktiv' : 'Helles Design aktiv',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: settings.isDarkMode,
+                    onChanged: (value) => notifier.updateThemeMode(value),
                   ),
                 ],
               ),
