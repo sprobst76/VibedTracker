@@ -22,13 +22,15 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       outlookIcsPath: fields[2] as String?,
       isDarkMode: fields[3] as bool,
       enableLocationTracking: fields[4] as bool,
+      googleCalendarEnabled: fields[5] as bool,
+      googleCalendarId: fields[6] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -38,7 +40,11 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(3)
       ..write(obj.isDarkMode)
       ..writeByte(4)
-      ..write(obj.enableLocationTracking);
+      ..write(obj.enableLocationTracking)
+      ..writeByte(5)
+      ..write(obj.googleCalendarEnabled)
+      ..writeByte(6)
+      ..write(obj.googleCalendarId);
   }
 
   @override

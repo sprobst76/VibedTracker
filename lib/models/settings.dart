@@ -13,6 +13,10 @@ class Settings extends HiveObject {
   bool isDarkMode;
   @HiveField(4)
   bool enableLocationTracking;
+  @HiveField(5)
+  bool googleCalendarEnabled;
+  @HiveField(6)
+  String? googleCalendarId;
 
   Settings({
     this.weeklyHours = 40.0,
@@ -20,5 +24,7 @@ class Settings extends HiveObject {
     this.outlookIcsPath,
     this.isDarkMode = false,
     this.enableLocationTracking = false,
+    this.googleCalendarEnabled = false,
+    this.googleCalendarId,
   });
 }

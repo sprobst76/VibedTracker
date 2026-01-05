@@ -50,6 +50,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..enableLocationTracking = enabled;
     state.save();
   }
+
+  void updateGoogleCalendarEnabled(bool enabled) {
+    state = state..googleCalendarEnabled = enabled;
+    state.save();
+  }
+
+  void updateGoogleCalendarId(String? calendarId) {
+    state = state..googleCalendarId = calendarId;
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

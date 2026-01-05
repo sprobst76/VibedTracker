@@ -5,6 +5,7 @@ import '../providers.dart';
 import '../services/test_data_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
+import 'calendar_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -258,6 +259,60 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Google Calendar Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Google Kalender',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Termine aus Google Kalender anzeigen (nur lesen)',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (settings.googleCalendarEnabled)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Verbunden',
+                            style: TextStyle(color: Colors.white, fontSize: 10),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CalendarSettingsScreen()),
+                    ),
+                    icon: const Icon(Icons.calendar_month),
+                    label: const Text('Kalender konfigurieren'),
+                  ),
                 ],
               ),
             ),
