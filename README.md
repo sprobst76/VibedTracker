@@ -27,3 +27,14 @@
 - Feiertags-Integration (deutsche Feiertage).
 - ICS-Export/Import für Outlook (inkl. Kategorie "Pause").
 - Kartenanzeige der Geofence-Bereiche (Google Maps).
+
+## Push & CI Hinweise
+
+- Remote hinzufügen und pushen (erstmalig):
+
+```bash
+git remote add origin https://github.com/sprobst76/VibedTracker.git
+git push -u origin main
+```
+
+- CI: Es gibt kein konfiguriertes CI-Setup im Repo; bei Bedarf kann ich eine GitHub Actions-Workflow-Datei hinzufügen.
