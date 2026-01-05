@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: TimeTracker ${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          files: app-release.apk
+          body: |
+            ## TimeTracker ${{ steps.version.outputs.VERSION }}
+
+            ### Features
+            - Geofence-basierte automatische Zeiterfassung
+            - Manuelle Arbeitszeiteinträge (Erstellen/Bearbeiten/Löschen)
+            - Wöchentliche Arbeitszeit mit Zeitraum-Perioden
+            - Dark Mode
+            - GPS-Tracking während der Arbeit (optional)
+            - Konfigurierbare Geofence-Zonen
+            - Einträge auf andere Tage kopieren
+            - Google Kalender Integration (nur lesen)
+            - Urlaubs- und Feiertagsverwaltung
+            - Wochenbericht mit Überstundenberechnung
+
+            ### Installation
+            1. APK herunterladen
+            2. In Android-Einstellungen "Installation aus unbekannten Quellen" aktivieren
+            3. APK installieren
+
+            ---
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
