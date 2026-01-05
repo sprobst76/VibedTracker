@@ -13,6 +13,7 @@ import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
+import '../services/location_tracking_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +24,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   final _geoService = MyGeofenceService();
   late final GeofenceSyncService _syncService;
+  final _locationService = LocationTrackingService();
   GeofenceStatus? _geofenceStatus;
   bool _isInitializing = true;
   String? _initError;
@@ -249,6 +251,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildStatusCard(bool running, bool isPaused, WorkEntry? entry) {
+    final settings = ref.watch(settingsProvider);
     Color bgColor;
     Color iconColor;
     IconData icon;
@@ -298,6 +301,21 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                   'Pausen: ${_formatDuration(_getTotalPauseDuration(entry))}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
+              if (settings.enableLocationTracking && _locationService.isTracking)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.gps_fixed, size: 14, color: Colors.blue.shade600),
+                      const SizedBox(width: 4),
+                      Text(
+                        'GPS-Tracking aktiv',
+                        style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ],
         ),
@@ -326,6 +344,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                   : () async {
                       final now = DateTime.now();
                       final box = Hive.box<WorkEntry>('work');
+                      final settings = ref.read(settingsProvider);
 
                       if (running && last != null) {
                         // Aktive Pause beenden falls vorhanden
@@ -334,8 +353,19 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                         }
                         last.stop = now;
                         await last.save();
+
+                        // GPS-Tracking stoppen
+                        if (settings.enableLocationTracking) {
+                          await _locationService.stopTracking();
+                        }
                       } else {
-                        await box.add(WorkEntry(start: now));
+                        final entry = WorkEntry(start: now);
+                        await box.add(entry);
+
+                        // GPS-Tracking starten wenn aktiviert
+                        if (settings.enableLocationTracking) {
+                          await _locationService.startTracking(entry.key.toString());
+                        }
                       }
 
                       ref.invalidate(workListProvider);

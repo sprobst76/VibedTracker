@@ -1,44 +1,44 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'settings.dart';
+part of 'location_point.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class SettingsAdapter extends TypeAdapter<Settings> {
+class LocationPointAdapter extends TypeAdapter<LocationPoint> {
   @override
-  final int typeId = 3;
+  final int typeId = 6;
 
   @override
-  Settings read(BinaryReader reader) {
+  LocationPoint read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Settings(
-      weeklyHours: fields[0] as double,
-      locale: fields[1] as String,
-      outlookIcsPath: fields[2] as String?,
-      isDarkMode: fields[3] as bool,
-      enableLocationTracking: fields[4] as bool,
+    return LocationPoint(
+      timestamp: fields[0] as DateTime,
+      latitude: fields[1] as double,
+      longitude: fields[2] as double,
+      accuracy: fields[3] as double?,
+      workEntryId: fields[4] as String?,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Settings obj) {
+  void write(BinaryWriter writer, LocationPoint obj) {
     writer
       ..writeByte(5)
       ..writeByte(0)
-      ..write(obj.weeklyHours)
+      ..write(obj.timestamp)
       ..writeByte(1)
-      ..write(obj.locale)
+      ..write(obj.latitude)
       ..writeByte(2)
-      ..write(obj.outlookIcsPath)
+      ..write(obj.longitude)
       ..writeByte(3)
-      ..write(obj.isDarkMode)
+      ..write(obj.accuracy)
       ..writeByte(4)
-      ..write(obj.enableLocationTracking);
+      ..write(obj.workEntryId);
   }
 
   @override
@@ -47,7 +47,7 @@ class SettingsAdapter extends TypeAdapter<Settings> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SettingsAdapter &&
+      other is LocationPointAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

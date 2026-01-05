@@ -11,11 +11,14 @@ class Settings extends HiveObject {
   String? outlookIcsPath;
   @HiveField(3)
   bool isDarkMode;
+  @HiveField(4)
+  bool enableLocationTracking;
 
   Settings({
     this.weeklyHours = 40.0,
     this.locale = 'de_DE',
     this.outlookIcsPath,
     this.isDarkMode = false,
+    this.enableLocationTracking = false,
   });
 }

@@ -7,6 +7,7 @@ import 'models/vacation.dart';
 import 'models/settings.dart';
 import 'models/weekly_hours_period.dart';
 import 'models/geofence_zone.dart';
+import 'models/location_point.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers.dart';
@@ -20,11 +21,13 @@ void main() async {
   Hive.registerAdapter(SettingsAdapter());
   Hive.registerAdapter(WeeklyHoursPeriodAdapter());
   Hive.registerAdapter(GeofenceZoneAdapter());
+  Hive.registerAdapter(LocationPointAdapter());
   await Hive.openBox<WorkEntry>('work');
   await Hive.openBox<Vacation>('vacation');
   await Hive.openBox<Settings>('settings');
   await Hive.openBox<WeeklyHoursPeriod>('weekly_hours_periods');
   await Hive.openBox<GeofenceZone>('geofence_zones');
+  await Hive.openBox<LocationPoint>('location_points');
   runApp(const ProviderScope(child: MyApp()));
 }
 

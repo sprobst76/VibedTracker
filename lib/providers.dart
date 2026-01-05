@@ -45,6 +45,11 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..isDarkMode = isDark;
     state.save();
   }
+
+  void updateLocationTracking(bool enabled) {
+    state = state..enableLocationTracking = enabled;
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)
