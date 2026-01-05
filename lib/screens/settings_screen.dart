@@ -67,6 +67,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
                     value: settings.locale,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),

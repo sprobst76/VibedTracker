@@ -7,6 +7,7 @@ import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
 import '../models/work_entry.dart';
+import '../models/pause.dart';
 import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
@@ -41,7 +42,6 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // App kam in den Vordergrund - Events synchronisieren
       _syncPendingEvents();
     }
   }
@@ -53,12 +53,8 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     });
 
     try {
-      // Zuerst ausstehende Events verarbeiten
       await _syncPendingEvents();
-
-      // Dann Geofence initialisieren
       await _initializeGeofence();
-
       setState(() => _isInitializing = false);
     } catch (e) {
       setState(() {
@@ -70,7 +66,6 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _initializeGeofence() async {
     try {
-      // Standort-Berechtigung prüfen
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         final requested = await Geolocator.requestPermission();
@@ -80,21 +75,17 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // Standort-Service prüfen
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         throw Exception('Standort-Dienst ist deaktiviert');
       }
 
-      // Aktuelle Position holen
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
-      // Geofence initialisieren
       await _geoService.init(lat: pos.latitude, lng: pos.longitude);
     } catch (e) {
-      // Geofence-Fehler nicht als kritisch behandeln
       debugPrint('Geofence init error: $e');
     }
   }
@@ -102,7 +93,6 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   Future<void> _syncPendingEvents() async {
     final processedCount = await _syncService.syncPendingEvents();
     if (processedCount > 0) {
-      // UI aktualisieren wenn Events verarbeitet wurden
       ref.invalidate(workListProvider);
     }
     await _updateStatus();
@@ -115,11 +105,44 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Pause-Hilfsmethoden
+  Pause? _getActivePause(WorkEntry? entry) {
+    if (entry == null) return null;
+    try {
+      return entry.pauses.lastWhere((p) => p.end == null);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _startPause(WorkEntry entry) async {
+    entry.pauses.add(Pause(start: DateTime.now()));
+    await entry.save();
+    ref.invalidate(workListProvider);
+  }
+
+  Future<void> _endPause(WorkEntry entry, Pause pause) async {
+    pause.end = DateTime.now();
+    await entry.save();
+    ref.invalidate(workListProvider);
+  }
+
+  Duration _getTotalPauseDuration(WorkEntry entry) {
+    var total = Duration.zero;
+    for (final pause in entry.pauses) {
+      final end = pause.end ?? DateTime.now();
+      total += end.difference(pause.start);
+    }
+    return total;
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = ref.watch(workListProvider);
     final last = entries.isEmpty ? null : entries.last;
     final running = last != null && last.stop == null;
+    final activePause = _getActivePause(last);
+    final isPaused = activePause != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -154,21 +177,29 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.all(16),
           children: [
             // Status Card
-            _buildStatusCard(running),
-            const SizedBox(height: 24),
+            _buildStatusCard(running, isPaused, last),
+            const SizedBox(height: 16),
 
-            // Start/Stop Button
-            _buildMainButton(running, last),
-            const SizedBox(height: 24),
+            // Buttons
+            _buildButtonRow(running, isPaused, last, activePause),
+            const SizedBox(height: 16),
+
+            // Pause Info (wenn aktive Pause oder Pausen vorhanden)
+            // ignore: unnecessary_null_comparison
+            if (running && last != null && last.pauses.isNotEmpty)
+              _buildPauseCard(last, activePause),
 
             // Geofence Status
-            if (_geofenceStatus != null) _buildGeofenceInfo(),
+            if (_geofenceStatus != null) ...[
+              const SizedBox(height: 16),
+              _buildGeofenceInfo(),
+            ],
 
             // Error Display
             if (_initError != null) _buildErrorCard(),
 
             // Recent Entries
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _buildRecentEntries(entries),
           ],
         ),
@@ -176,81 +207,246 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildStatusCard(bool running) {
+  Widget _buildStatusCard(bool running, bool isPaused, WorkEntry? entry) {
+    Color bgColor;
+    Color iconColor;
+    IconData icon;
+    String statusText;
+
+    if (!running) {
+      bgColor = Colors.grey.shade100;
+      iconColor = Colors.grey;
+      icon = Icons.pause_circle;
+      statusText = 'Nicht aktiv';
+    } else if (isPaused) {
+      bgColor = Colors.orange.shade50;
+      iconColor = Colors.orange;
+      icon = Icons.coffee;
+      statusText = 'Pause';
+    } else {
+      bgColor = Colors.green.shade50;
+      iconColor = Colors.green;
+      icon = Icons.play_circle;
+      statusText = 'Arbeitszeit läuft';
+    }
+
     return Card(
-      color: running ? Colors.green.shade50 : Colors.grey.shade100,
+      color: bgColor,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Icon(
-              running ? Icons.play_circle : Icons.pause_circle,
-              size: 48,
-              color: running ? Colors.green : Colors.grey,
-            ),
+            Icon(icon, size: 48, color: iconColor),
             const SizedBox(height: 12),
             Text(
-              running ? 'Arbeitszeit läuft' : 'Nicht aktiv',
+              statusText,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: running ? Colors.green.shade700 : Colors.grey.shade700,
+                color: iconColor,
               ),
             ),
-            if (running && _geofenceStatus?.lastEvent != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Gestartet: ${_formatTime(_geofenceStatus!.lastEvent!.timestamp)}',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+            if (running && entry != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Gestartet: ${_formatTime(entry.start)}',
+                style: TextStyle(color: Colors.grey.shade600),
               ),
+              if (entry.pauses.isNotEmpty)
+                Text(
+                  'Pausen: ${_formatDuration(_getTotalPauseDuration(entry))}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMainButton(bool running, WorkEntry? last) {
-    return SizedBox(
-      height: 80,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: running ? Colors.red : Colors.green,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildButtonRow(bool running, bool isPaused, WorkEntry? last, Pause? activePause) {
+    return Row(
+      children: [
+        // Start/Stop Button
+        Expanded(
+          flex: 2,
+          child: SizedBox(
+            height: 64,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: running ? Colors.red : Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _isInitializing
+                  ? null
+                  : () async {
+                      final now = DateTime.now();
+                      final box = Hive.box<WorkEntry>('work');
+
+                      if (running && last != null) {
+                        // Aktive Pause beenden falls vorhanden
+                        if (activePause != null) {
+                          activePause.end = now;
+                        }
+                        last.stop = now;
+                        await last.save();
+                      } else {
+                        await box.add(WorkEntry(start: now));
+                      }
+
+                      ref.invalidate(workListProvider);
+                      await _updateStatus();
+                    },
+              child: _isInitializing
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(running ? Icons.stop : Icons.play_arrow, size: 28),
+                        const SizedBox(width: 8),
+                        Text(
+                          running ? 'STOP' : 'START',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ),
-        onPressed: _isInitializing
-            ? null
-            : () async {
-                final now = DateTime.now();
-                final box = Hive.box<WorkEntry>('work');
 
-                if (running && last != null) {
-                  last.stop = now;
-                  await last.save();
-                } else {
-                  await box.add(WorkEntry(start: now));
-                }
-
-                ref.invalidate(workListProvider);
-                await _updateStatus();
-              },
-        child: _isInitializing
-            ? const CircularProgressIndicator(color: Colors.white)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(running ? Icons.stop : Icons.play_arrow, size: 32),
-                  const SizedBox(width: 12),
-                  Text(
-                    running ? 'STOP' : 'START',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        // Pause Button (nur wenn Arbeit läuft)
+        if (running && last != null) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            child: SizedBox(
+              height: 64,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isPaused ? Colors.green : Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
+                ),
+                onPressed: () async {
+                  if (isPaused && activePause != null) {
+                    await _endPause(last, activePause);
+                  } else {
+                    await _startPause(last);
+                  }
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(isPaused ? Icons.play_arrow : Icons.coffee, size: 24),
+                    Text(
+                      isPaused ? 'Weiter' : 'Pause',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPauseCard(WorkEntry entry, Pause? activePause) {
+    final totalPause = _getTotalPauseDuration(entry);
+
+    return Card(
+      color: activePause != null ? Colors.orange.shade50 : null,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.coffee,
+                  color: activePause != null ? Colors.orange : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Pausen',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Text(
+                  'Gesamt: ${_formatDuration(totalPause)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+            if (entry.pauses.isNotEmpty) ...[
+              const Divider(),
+              ...entry.pauses.map((pause) {
+                final isActive = pause.end == null;
+                final duration = (pause.end ?? DateTime.now()).difference(pause.start);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isActive ? Colors.orange : Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _formatTime(pause.start),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      Text(
+                        ' - ${isActive ? 'läuft' : _formatTime(pause.end!)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isActive ? Colors.orange : Colors.grey.shade600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _formatDuration(duration),
+                        style: TextStyle(
+                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                          color: isActive ? Colors.orange : Colors.grey.shade600,
+                        ),
+                      ),
+                      if (isActive) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.orange.shade400,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -380,29 +576,59 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const Divider(height: 1),
-          ...recent.map((entry) => ListTile(
-                leading: CircleAvatar(
-                  backgroundColor:
-                      entry.stop == null ? Colors.green : Colors.blue,
-                  child: Icon(
-                    entry.stop == null ? Icons.play_arrow : Icons.check,
-                    color: Colors.white,
-                    size: 20,
+          ...recent.map((entry) {
+            final isRunning = entry.stop == null;
+            final pauseDuration = _getTotalPauseDuration(entry);
+            final hasPauses = entry.pauses.isNotEmpty;
+
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isRunning ? Colors.green : Colors.blue,
+                child: Icon(
+                  isRunning ? Icons.play_arrow : Icons.check,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              title: Text(_formatDate(entry.start)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isRunning
+                        ? 'Läuft seit ${_formatTime(entry.start)}'
+                        : '${_formatTime(entry.start)} - ${_formatTime(entry.stop!)}',
                   ),
-                ),
-                title: Text(_formatDate(entry.start)),
-                subtitle: Text(
-                  entry.stop == null
-                      ? 'Läuft seit ${_formatTime(entry.start)}'
-                      : '${_formatTime(entry.start)} - ${_formatTime(entry.stop!)}',
-                ),
-                trailing: entry.stop != null
-                    ? Text(
-                        _formatDuration(entry.stop!.difference(entry.start)),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      )
-                    : null,
-              )),
+                  if (hasPauses)
+                    Text(
+                      'Pausen: ${_formatDuration(pauseDuration)} (${entry.pauses.length}x)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                ],
+              ),
+              trailing: entry.stop != null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _formatDuration(entry.stop!.difference(entry.start) - pauseDuration),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (hasPauses)
+                          Text(
+                            'netto',
+                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                          ),
+                      ],
+                    )
+                  : null,
+              isThreeLine: hasPauses,
+            );
+          }),
         ],
       ),
     );
