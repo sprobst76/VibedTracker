@@ -25,6 +25,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..weeklyHours = h;
     state.save();
   }
+
+  void updateLocale(String locale) {
+    state = state..locale = locale;
+    state.save();
+  }
+
+  void updateOutlookIcsPath(String? path) {
+    state = state..outlookIcsPath = path;
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen

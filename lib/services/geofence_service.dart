@@ -1,6 +1,7 @@
 // lib/services/geofence_service.dart
 import 'package:geofence_foreground_service/geofence_foreground_service.dart';
 import 'package:geofence_foreground_service/models/zone.dart';
+import 'package:geofence_foreground_service/constants/geofence_event_type.dart';
 import 'package:latlng/latlng.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'geofence_callback.dart';
@@ -29,8 +30,8 @@ class MyGeofenceService {
         id: 'office',
         radius: 150, // Radius in Metern :contentReference[oaicite:7]{index=7}
         coordinates: [
-          LatLng(lat, lng)
-        ], // Zentrum als Liste mit einem LatLng :contentReference[oaicite:8]{index=8}
+          LatLng.degree(lat, lng)
+        ],
         triggers: [
           GeofenceEventType.enter,
           GeofenceEventType.exit,

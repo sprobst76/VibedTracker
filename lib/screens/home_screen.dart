@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../providers.dart';
 import '../services/geofence_service.dart';
 import 'settings_screen.dart';
@@ -19,8 +20,8 @@ class _HomeState extends ConsumerState<HomeScreen> {
 
   Future<void> _initializeGeofence() async {
     final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );                                             // aktuelle Position abrufen :contentReference[oaicite:0]{index=0}
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
     await geo.init(lat: pos.latitude, lng: pos.longitude);
   }
 
@@ -34,7 +35,7 @@ class _HomeState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext ctx) {
     final entries = ref.watch(workListProvider);
-    final last = entries.isEmpty ? null : (entries.last as WorkEntry);
+    final last = entries.isEmpty ? null : entries.last;
     final running = last != null && last.stop == null;
 
     return Scaffold(
