@@ -68,6 +68,132 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     }
   }
 
+  void _showCalculationInfoDialog(BuildContext context, Settings settings) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Berechnungslogik'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInfoSection(
+                'Soll-Arbeitszeit',
+                'Die tägliche Soll-Arbeitszeit wird aus deiner Wochenstunden-Einstellung '
+                    'berechnet (aktuell ${settings.weeklyHours}h/Woche), verteilt auf die '
+                    'Arbeitstage (Mo-Fr, außer definierte freie Tage).',
+                Icons.schedule,
+                Colors.blue,
+              ),
+              const Divider(height: 24),
+              _buildInfoSection(
+                'Arbeitstage',
+                'Ein Tag zählt als Arbeitstag, wenn er:\n'
+                    '• Kein Wochenende ist\n'
+                    '• Kein Feiertag ist\n'
+                    '• Keine bezahlte Abwesenheit vorliegt\n'
+                    '• Kein frei definierter Sondertag ist (z.B. Heiligabend)',
+                Icons.event_available,
+                Colors.teal,
+              ),
+              const Divider(height: 24),
+              _buildInfoSection(
+                'Bezahlte Abwesenheit',
+                'Folgende Abwesenheiten reduzieren die Soll-Arbeitszeit:\n'
+                    '• Urlaub\n'
+                    '• Krankheit\n'
+                    '• Kind krank\n'
+                    '• Sonderurlaub\n\n'
+                    'Diese Tage werden bezahlt und zählen nicht als Arbeitstage.',
+                Icons.beach_access,
+                Colors.orange,
+              ),
+              const Divider(height: 24),
+              _buildInfoSection(
+                'Unbezahlte Abwesenheit',
+                'Unbezahlter Urlaub reduziert die Soll-Arbeitszeit NICHT. '
+                    'Die Stunden müssen nachgearbeitet oder vom Gehalt abgezogen werden.',
+                Icons.money_off,
+                Colors.red,
+              ),
+              const Divider(height: 24),
+              _buildInfoSection(
+                'Heiligabend & Silvester',
+                _getSpecialDaysDescription(settings),
+                Icons.celebration,
+                Colors.purple,
+              ),
+              const Divider(height: 24),
+              _buildInfoSection(
+                'Überstunden',
+                'Überstunden = Ist-Arbeitszeit − Soll-Arbeitszeit\n\n'
+                    'Positiv: Du hast mehr gearbeitet als erforderlich.\n'
+                    'Negativ: Du hast weniger gearbeitet als erforderlich.',
+                Icons.trending_up,
+                Colors.green,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Verstanden'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(String title, String description, IconData icon, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade700,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getSpecialDaysDescription(Settings settings) {
+    final christmas = Settings.workFactorLabel(settings.christmasEveWorkFactor);
+    final newYear = Settings.workFactorLabel(settings.newYearsEveWorkFactor);
+
+    return 'Aktuelle Einstellung:\n'
+        '• 24.12. (Heiligabend): $christmas\n'
+        '• 31.12. (Silvester): $newYear\n\n'
+        'Bei "Halber Tag" wird die Soll-Arbeitszeit halbiert.\n'
+        'Bei "Frei" entfällt die Soll-Arbeitszeit komplett.';
+  }
+
   Future<void> _exportMonth(
     List<WorkEntry> entries,
     double weeklyHours,
@@ -127,6 +253,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
       appBar: AppBar(
         title: const Text('Berichte'),
         actions: [
+          // Info-Button für Berechnungslogik
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Berechnungslogik',
+            onPressed: () => _showCalculationInfoDialog(context, settings),
+          ),
           // Export-Button nur im Monat-Tab anzeigen
           AnimatedBuilder(
             animation: _tabController,

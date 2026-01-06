@@ -65,13 +65,19 @@ Datum: 2026-01-05
 - Integration in Berichte (Wochen-, Monats-, Jahresansicht)
 - Dateien: `lib/models/settings.dart`, `lib/providers.dart`, `lib/screens/settings_screen.dart`, `lib/screens/report_screen.dart`
 
+### ✅ 5. Arbeitszeit gemäß Arbeitsgesetzen (2026-01-06)
+- Info-Button im Bericht-Screen mit detaillierter Dokumentation
+- Erklärt Soll-Arbeitszeit-Berechnung (Wochenstunden / Arbeitstage)
+- Dokumentiert was als Arbeitstag zählt (kein Wochenende, Feiertag, bezahlte Abwesenheit)
+- Bezahlte Abwesenheiten (Urlaub, Krankheit, etc.) reduzieren Soll-Zeit
+- Unbezahlte Abwesenheit reduziert Soll-Zeit NICHT
+- Heiligabend/Silvester-Faktor wird berücksichtigt
+- Dateien: `lib/screens/report_screen.dart`
+
 ---
 
 ## Feature-Ideen (Backlog)
 
-### 5. Arbeitszeit gemäß Arbeitsgesetzen
-- Monats- und Wochenarbeitszeit korrekt berechnen
-- Klare Verrechnung von Urlaub, Feiertagen, Krankheit mit Sollzeit
-- Dokumentieren wie die Berechnung funktioniert
+(Keine offenen Features)
 
 Datum: 2026-01-06
