@@ -27,6 +27,8 @@ class Settings extends HiveObject {
   String? googleCalendarId;
   @HiveField(7)
   int themeModeIndex; // 0 = system, 1 = light, 2 = dark
+  @HiveField(8)
+  String bundesland; // Bundesland für Feiertage (DE = alle)
 
   Settings({
     this.weeklyHours = 40.0,
@@ -37,6 +39,7 @@ class Settings extends HiveObject {
     this.googleCalendarEnabled = false,
     this.googleCalendarId,
     this.themeModeIndex = 0, // Default: System
+    this.bundesland = 'DE', // Default: Alle Bundesländer
   });
 
   /// Gibt den aktuellen Theme-Modus zurück

@@ -60,6 +60,11 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..googleCalendarId = calendarId;
     state.save();
   }
+
+  void updateBundesland(String bundesland) {
+    state = state..bundesland = bundesland;
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)
@@ -190,18 +195,18 @@ class VacationNotifier extends StateNotifier<List<Vacation>> {
     state = box.values.toList();
   }
 
-  /// Fügt einen Urlaubstag hinzu
-  Future<void> addVacation(DateTime day, {String? description}) async {
+  /// Fügt einen Abwesenheitstag hinzu
+  Future<void> addVacation(DateTime day, {String? description, AbsenceType type = AbsenceType.vacation}) async {
     // Prüfen ob Tag bereits existiert
     final exists = state.any((v) =>
         v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
     if (!exists) {
-      await box.add(Vacation(day: day, description: description));
+      await box.add(Vacation(day: day, description: description, type: type));
       _refresh();
     }
   }
 
-  /// Entfernt einen Urlaubstag
+  /// Entfernt einen Abwesenheitstag
   Future<void> removeVacation(DateTime day) async {
     final vacation = state.firstWhere(
       (v) => v.day.year == day.year && v.day.month == day.month && v.day.day == day.day,
@@ -214,23 +219,34 @@ class VacationNotifier extends StateNotifier<List<Vacation>> {
   }
 
   /// Toggle: Fügt hinzu wenn nicht vorhanden, entfernt wenn vorhanden
-  Future<void> toggleVacation(DateTime day, {String? description}) async {
+  Future<void> toggleVacation(DateTime day, {String? description, AbsenceType type = AbsenceType.vacation}) async {
     final exists = state.any((v) =>
         v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
     if (exists) {
       await removeVacation(day);
     } else {
-      await addVacation(day, description: description);
+      await addVacation(day, description: description, type: type);
     }
   }
 
-  /// Prüft ob ein Tag ein Urlaubstag ist
+  /// Prüft ob ein Tag ein Abwesenheitstag ist
   bool isVacationDay(DateTime day) {
     return state.any((v) =>
         v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
   }
 
-  /// Aktualisiert die Beschreibung eines Urlaubstags
+  /// Holt den Abwesenheitseintrag für einen Tag (falls vorhanden)
+  Vacation? getAbsence(DateTime day) {
+    try {
+      return state.firstWhere(
+        (v) => v.day.year == day.year && v.day.month == day.month && v.day.day == day.day,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Aktualisiert die Beschreibung eines Abwesenheitstags
   Future<void> updateDescription(DateTime day, String? description) async {
     final vacation = state.firstWhere(
       (v) => v.day.year == day.year && v.day.month == day.month && v.day.day == day.day,
@@ -241,6 +257,34 @@ class VacationNotifier extends StateNotifier<List<Vacation>> {
       await vacation.save();
       _refresh();
     }
+  }
+
+  /// Aktualisiert den Typ eines Abwesenheitstags
+  Future<void> updateType(DateTime day, AbsenceType type) async {
+    final vacation = state.firstWhere(
+      (v) => v.day.year == day.year && v.day.month == day.month && v.day.day == day.day,
+      orElse: () => Vacation(day: day),
+    );
+    if (vacation.isInBox) {
+      vacation.type = type;
+      await vacation.save();
+      _refresh();
+    }
+  }
+
+  /// Gibt alle Einträge eines bestimmten Typs zurück
+  List<Vacation> getByType(AbsenceType type) {
+    return state.where((v) => v.type == type).toList();
+  }
+
+  /// Zählt Einträge eines Typs (optional für Jahr/Monat)
+  int countByType(AbsenceType type, {int? year, int? month}) {
+    return state.where((v) {
+      if (v.type != type) return false;
+      if (year != null && v.day.year != year) return false;
+      if (month != null && v.day.month != month) return false;
+      return true;
+    }).length;
   }
 }
 

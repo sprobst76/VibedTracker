@@ -30,6 +30,21 @@ class HolidayService {
     return holidays.any((h) =>
         h.year == date.year && h.month == date.month && h.day == date.day);
   }
+
+  /// Holt Feiertage gefiltert nach Bundesland
+  /// bundesland: 'DE' für alle, oder Kürzel wie 'BY', 'NW', etc.
+  Future<List<Holiday>> fetchHolidaysForBundesland(int year, String bundesland) async {
+    final holidays = await fetchHolidays(year);
+    if (bundesland == 'DE') return holidays;
+
+    // Filter: global (bundesweit) ODER Bundesland in counties enthalten
+    return holidays.where((h) {
+      if (h.global) return true;
+      if (h.counties == null) return false;
+      // API verwendet Format "DE-BY", "DE-NW", etc.
+      return h.counties!.contains('DE-$bundesland');
+    }).toList();
+  }
 }
 
 /// Modell für einen Feiertag

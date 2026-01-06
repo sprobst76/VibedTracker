@@ -77,7 +77,7 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Sprache / Region',
+                    'Sprache',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -95,6 +95,58 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                     onChanged: (value) {
                       if (value != null) notifier.updateLocale(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Bundesland Section (für Feiertage)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Bundesland (für Feiertage)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Bestimmt welche regionalen Feiertage angezeigt werden.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: settings.bundesland,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'DE', child: Text('Alle Bundesländer')),
+                      DropdownMenuItem(value: 'BW', child: Text('Baden-Württemberg')),
+                      DropdownMenuItem(value: 'BY', child: Text('Bayern')),
+                      DropdownMenuItem(value: 'BE', child: Text('Berlin')),
+                      DropdownMenuItem(value: 'BB', child: Text('Brandenburg')),
+                      DropdownMenuItem(value: 'HB', child: Text('Bremen')),
+                      DropdownMenuItem(value: 'HH', child: Text('Hamburg')),
+                      DropdownMenuItem(value: 'HE', child: Text('Hessen')),
+                      DropdownMenuItem(value: 'MV', child: Text('Mecklenburg-Vorpommern')),
+                      DropdownMenuItem(value: 'NI', child: Text('Niedersachsen')),
+                      DropdownMenuItem(value: 'NW', child: Text('Nordrhein-Westfalen')),
+                      DropdownMenuItem(value: 'RP', child: Text('Rheinland-Pfalz')),
+                      DropdownMenuItem(value: 'SL', child: Text('Saarland')),
+                      DropdownMenuItem(value: 'SN', child: Text('Sachsen')),
+                      DropdownMenuItem(value: 'ST', child: Text('Sachsen-Anhalt')),
+                      DropdownMenuItem(value: 'SH', child: Text('Schleswig-Holstein')),
+                      DropdownMenuItem(value: 'TH', child: Text('Thüringen')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) notifier.updateBundesland(value);
                     },
                   ),
                 ],

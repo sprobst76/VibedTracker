@@ -19,17 +19,19 @@ class VacationAdapter extends TypeAdapter<Vacation> {
     return Vacation(
       day: fields[0] as DateTime,
       description: fields[1] as String?,
-    );
+    )..typeIndex = fields[2] as int;
   }
 
   @override
   void write(BinaryWriter writer, Vacation obj) {
     writer
-      ..writeByte(2)
+      ..writeByte(3)
       ..writeByte(0)
       ..write(obj.day)
       ..writeByte(1)
-      ..write(obj.description);
+      ..write(obj.description)
+      ..writeByte(2)
+      ..write(obj.typeIndex);
   }
 
   @override

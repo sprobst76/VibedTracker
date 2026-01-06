@@ -5,6 +5,9 @@ import '../models/work_entry.dart';
 import '../models/vacation.dart';
 import '../services/holiday_service.dart';
 
+// Re-export AbsenceType for convenience
+export '../models/vacation.dart' show AbsenceType;
+
 class ReportScreen extends ConsumerStatefulWidget {
   const ReportScreen({super.key});
 
@@ -16,6 +19,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   DateTime _selectedWeekStart = _getWeekStart(DateTime.now());
   final HolidayService _holidayService = HolidayService();
   Map<DateTime, Holiday> _holidays = {};
+  String? _loadedBundesland;
 
   static DateTime _getWeekStart(DateTime date) {
     final daysFromMonday = date.weekday - 1;
@@ -25,22 +29,27 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadHolidays();
+    // Feiertage werden im build() geladen, nachdem Settings verfügbar sind
   }
 
-  Future<void> _loadHolidays() async {
+  Future<void> _loadHolidays(String bundesland) async {
+    if (_loadedBundesland == bundesland && _holidays.isNotEmpty) return;
+
     try {
       final year = DateTime.now().year;
-      final holidays = await _holidayService.fetchHolidays(year);
-      final nextYearHolidays = await _holidayService.fetchHolidays(year + 1);
-      final prevYearHolidays = await _holidayService.fetchHolidays(year - 1);
+      final holidays = await _holidayService.fetchHolidaysForBundesland(year, bundesland);
+      final nextYearHolidays = await _holidayService.fetchHolidaysForBundesland(year + 1, bundesland);
+      final prevYearHolidays = await _holidayService.fetchHolidaysForBundesland(year - 1, bundesland);
 
-      setState(() {
-        _holidays = {
-          for (final h in [...prevYearHolidays, ...holidays, ...nextYearHolidays])
-            DateTime(h.date.year, h.date.month, h.date.day): h
-        };
-      });
+      if (mounted) {
+        setState(() {
+          _holidays = {
+            for (final h in [...prevYearHolidays, ...holidays, ...nextYearHolidays])
+              DateTime(h.date.year, h.date.month, h.date.day): h
+          };
+          _loadedBundesland = bundesland;
+        });
+      }
     } catch (e) {
       // Feiertage konnten nicht geladen werden
     }
@@ -70,6 +79,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final vacations = ref.watch(vacationProvider);
     final settings = ref.watch(settingsProvider);
     final periodsNotifier = ref.watch(weeklyHoursPeriodsProvider.notifier);
+
+    // Lade Feiertage wenn sich das Bundesland ändert
+    if (_loadedBundesland != settings.bundesland) {
+      _loadHolidays(settings.bundesland);
+    }
 
     final weekData = _calculateWeekData(
       workEntries,
@@ -213,10 +227,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                 ],
               ),
             ],
-            if (weekData.holidayCount > 0 || weekData.vacationCount > 0) ...[
+            if (weekData.holidayCount > 0 || weekData.absenceCounts.values.any((c) => c > 0)) ...[
               const SizedBox(height: 8),
               Wrap(
-                spacing: 16,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   if (weekData.holidayCount > 0)
                     Chip(
@@ -224,12 +239,13 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                       label: Text('${weekData.holidayCount} Feiertag(e)'),
                       backgroundColor: Colors.red.shade50,
                     ),
-                  if (weekData.vacationCount > 0)
-                    Chip(
-                      avatar: const Icon(Icons.beach_access, size: 16),
-                      label: Text('${weekData.vacationCount} Urlaubstag(e)'),
-                      backgroundColor: Colors.orange.shade50,
-                    ),
+                  ...weekData.absenceCounts.entries
+                    .where((e) => e.value > 0)
+                    .map((e) => Chip(
+                      avatar: Icon(e.key.icon, size: 16),
+                      label: Text('${e.value} ${e.key.label}'),
+                      backgroundColor: e.key.color.withAlpha(50),
+                    )),
                 ],
               ),
             ],
@@ -337,10 +353,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     if (dayData.isHoliday) {
       parts.add('Feiertag: ${dayData.holidayName}');
     }
-    if (dayData.isVacation) {
-      parts.add('Urlaub');
+    if (dayData.isAbsent && dayData.absenceType != null) {
+      parts.add(dayData.absenceType!.label);
     }
-    if (isWeekend && !dayData.isHoliday && !dayData.isVacation) {
+    if (isWeekend && !dayData.isHoliday && !dayData.isAbsent) {
       parts.add('Wochenende');
     }
     if (dayData.entriesCount > 0) {
@@ -365,7 +381,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
 
   Color _getDayColor(DayData dayData, bool isWeekend) {
     if (dayData.isHoliday) return Colors.red;
-    if (dayData.isVacation) return Colors.orange;
+    if (dayData.isAbsent && dayData.absenceType != null) return dayData.absenceType!.color;
     if (isWeekend) return Colors.grey;
     if (dayData.workedHours > 0) return Colors.green;
     return Colors.grey.shade400;
@@ -383,7 +399,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     var totalTargetHours = 0.0;
     var workDays = 0;
     var holidayCount = 0;
-    var vacationCount = 0;
+    final absenceCounts = <AbsenceType, int>{
+      for (final type in AbsenceType.values) type: 0
+    };
     var entriesCount = 0;
 
     for (var i = 0; i < 7; i++) {
@@ -395,9 +413,15 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       final holiday = _holidays[normalizedDay];
       final isHoliday = holiday != null;
 
-      // Check vacation
-      final isVacation = vacations.any((v) =>
-          v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
+      // Check absence (vacation, illness, etc.)
+      Vacation? absence;
+      try {
+        absence = vacations.firstWhere((v) =>
+            v.day.year == day.year && v.day.month == day.month && v.day.day == day.day);
+      } catch (e) {
+        absence = null;
+      }
+      final isAbsent = absence != null;
 
       // Get daily target hours for this specific day (period-aware)
       final dailyHours = periodsNotifier.getDailyHoursForDate(day);
@@ -426,14 +450,16 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         }
       }
 
-      // Count work days (excluding weekends, holidays, vacations)
-      if (!isWeekend && !isHoliday && !isVacation) {
+      // Count work days (excluding weekends, holidays, paid absences)
+      // Unbezahlt frei zählt als Arbeitstag (keine Soll-Reduktion)
+      final isPaidAbsence = absence != null && absence.type.isPaid;
+      if (!isWeekend && !isHoliday && !isPaidAbsence) {
         workDays++;
         totalTargetHours += dailyHours;
       }
 
       if (isHoliday) holidayCount++;
-      if (isVacation) vacationCount++;
+      if (absence != null) absenceCounts[absence.type] = (absenceCounts[absence.type] ?? 0) + 1;
 
       totalWorked += dayWorked;
       totalPause += dayPause;
@@ -446,7 +472,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         entriesCount: dayEntries,
         isHoliday: isHoliday,
         holidayName: holiday?.localName,
-        isVacation: isVacation,
+        isAbsent: isAbsent,
+        absenceType: absence?.type,
       ));
     }
 
@@ -457,7 +484,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       targetHours: totalTargetHours,
       workDays: workDays,
       holidayCount: holidayCount,
-      vacationCount: vacationCount,
+      absenceCounts: absenceCounts,
       entriesCount: entriesCount,
     );
   }
@@ -501,7 +528,8 @@ class DayData {
   final int entriesCount;
   final bool isHoliday;
   final String? holidayName;
-  final bool isVacation;
+  final bool isAbsent;
+  final AbsenceType? absenceType;
 
   DayData({
     required this.date,
@@ -510,8 +538,12 @@ class DayData {
     required this.entriesCount,
     required this.isHoliday,
     this.holidayName,
-    required this.isVacation,
+    required this.isAbsent,
+    this.absenceType,
   });
+
+  // Kompatibilität
+  bool get isVacation => isAbsent;
 }
 
 /// Zusammenfassung für eine Woche
@@ -522,7 +554,7 @@ class WeekData {
   final double targetHours;
   final int workDays;
   final int holidayCount;
-  final int vacationCount;
+  final Map<AbsenceType, int> absenceCounts;
   final int entriesCount;
 
   WeekData({
@@ -532,7 +564,10 @@ class WeekData {
     required this.targetHours,
     required this.workDays,
     required this.holidayCount,
-    required this.vacationCount,
+    required this.absenceCounts,
     required this.entriesCount,
   });
+
+  // Kompatibilität: Gesamtzahl aller Abwesenheiten
+  int get vacationCount => absenceCounts.values.fold(0, (a, b) => a + b);
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../providers.dart';
+import '../models/vacation.dart';
 import '../services/holiday_service.dart';
 
 class VacationScreen extends ConsumerStatefulWidget {
@@ -18,26 +19,32 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
   final HolidayService _holidayService = HolidayService();
   Map<DateTime, Holiday> _holidays = {};
+  String? _loadedBundesland;
 
   @override
   void initState() {
     super.initState();
-    _loadHolidays();
+    // Feiertage werden im build() geladen, nachdem Settings verfügbar sind
   }
 
-  Future<void> _loadHolidays() async {
+  Future<void> _loadHolidays(String bundesland) async {
+    if (_loadedBundesland == bundesland && _holidays.isNotEmpty) return;
+
     try {
       final year = DateTime.now().year;
-      final holidays = await _holidayService.fetchHolidays(year);
+      final holidays = await _holidayService.fetchHolidaysForBundesland(year, bundesland);
       // Auch nächstes Jahr laden für Jahreswechsel
-      final nextYearHolidays = await _holidayService.fetchHolidays(year + 1);
+      final nextYearHolidays = await _holidayService.fetchHolidaysForBundesland(year + 1, bundesland);
 
-      setState(() {
-        _holidays = {
-          for (final h in [...holidays, ...nextYearHolidays])
-            DateTime(h.date.year, h.date.month, h.date.day): h
-        };
-      });
+      if (mounted) {
+        setState(() {
+          _holidays = {
+            for (final h in [...holidays, ...nextYearHolidays])
+              DateTime(h.date.year, h.date.month, h.date.day): h
+          };
+          _loadedBundesland = bundesland;
+        });
+      }
     } catch (e) {
       // Feiertage konnten nicht geladen werden - ignorieren
     }
@@ -55,8 +62,14 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
   Widget build(BuildContext context) {
     final vacations = ref.watch(vacationProvider);
     final notifier = ref.read(vacationProvider.notifier);
+    final settings = ref.watch(settingsProvider);
 
-    // Vacation days als Set für schnellen Lookup
+    // Lade Feiertage wenn sich das Bundesland ändert
+    if (_loadedBundesland != settings.bundesland) {
+      _loadHolidays(settings.bundesland);
+    }
+
+    // Vacation days als Map für schnellen Lookup
     final vacationDays = {
       for (final v in vacations)
         DateTime(v.day.year, v.day.month, v.day.day): v
@@ -64,7 +77,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Urlaub verwalten'),
+        title: const Text('Abwesenheit verwalten'),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -121,7 +134,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
           const Divider(),
 
-          // Urlaubsliste
+          // Abwesenheitsliste
           Expanded(
             child: _buildVacationList(vacations, notifier),
           ),
@@ -129,13 +142,8 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       ),
       floatingActionButton: _selectedDay != null
           ? FloatingActionButton(
-              onPressed: () => notifier.toggleVacation(_selectedDay!),
-              child: Icon(
-                vacationDays.containsKey(DateTime(
-                    _selectedDay!.year, _selectedDay!.month, _selectedDay!.day))
-                    ? Icons.remove
-                    : Icons.add,
-              ),
+              onPressed: () => _showAddAbsenceDialog(notifier),
+              child: const Icon(Icons.add),
             )
           : null,
     );
@@ -143,21 +151,22 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
   Widget _buildDayCell(
     DateTime day,
-    Map<DateTime, dynamic> vacationDays, {
+    Map<DateTime, Vacation> vacationDays, {
     bool isSelected = false,
     bool isToday = false,
     bool isOutside = false,
   }) {
     final normalizedDay = DateTime(day.year, day.month, day.day);
-    final isVacation = vacationDays.containsKey(normalizedDay);
+    final vacation = vacationDays[normalizedDay];
     final isHoliday = _isHoliday(day);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
 
     Color? bgColor;
     Color textColor = isOutside ? Colors.grey : Colors.black;
 
-    if (isVacation) {
-      bgColor = Colors.orange.shade200;
+    if (vacation != null) {
+      bgColor = vacation.type.color.withOpacity(0.3);
+      textColor = vacation.type.color;
     } else if (isHoliday) {
       bgColor = Colors.red.shade100;
       textColor = Colors.red.shade700;
@@ -168,7 +177,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     if (isSelected) {
       bgColor = Colors.blue.shade300;
       textColor = Colors.white;
-    } else if (isToday && !isVacation) {
+    } else if (isToday && vacation == null) {
       bgColor = Colors.blue.shade100;
     }
 
@@ -192,13 +201,12 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
   }
 
   Widget _buildSelectedDayInfo(
-    Map<DateTime, dynamic> vacationDays,
+    Map<DateTime, Vacation> vacationDays,
     VacationNotifier notifier,
   ) {
     final normalizedDay = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
     final vacation = vacationDays[normalizedDay];
     final holiday = _getHoliday(_selectedDay!);
-    final isVacation = vacation != null;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -212,10 +220,11 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
-              if (isVacation)
+              if (vacation != null)
                 Chip(
-                  label: const Text('Urlaub'),
-                  backgroundColor: Colors.orange.shade200,
+                  avatar: Icon(vacation.type.icon, size: 16),
+                  label: Text(vacation.type.label),
+                  backgroundColor: vacation.type.color.withOpacity(0.2),
                 ),
               if (holiday != null)
                 Chip(
@@ -224,7 +233,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
                 ),
             ],
           ),
-          if (isVacation && vacation.description != null)
+          if (vacation != null && vacation.description != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
@@ -235,18 +244,26 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              if (!isVacation)
+              if (vacation == null)
                 ElevatedButton.icon(
-                  onPressed: () => _showAddVacationDialog(notifier),
-                  icon: const Icon(Icons.beach_access),
-                  label: const Text('Urlaub eintragen'),
+                  onPressed: () => _showAddAbsenceDialog(notifier),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Abwesenheit eintragen'),
                 )
-              else
+              else ...[
+                OutlinedButton.icon(
+                  onPressed: () => _showEditAbsenceDialog(notifier, vacation),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Bearbeiten'),
+                ),
+                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: () => notifier.removeVacation(_selectedDay!),
                   icon: const Icon(Icons.delete),
-                  label: const Text('Urlaub entfernen'),
+                  label: const Text('Entfernen'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
                 ),
+              ],
             ],
           ),
         ],
@@ -254,21 +271,21 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     );
   }
 
-  Widget _buildVacationList(List vacations, VacationNotifier notifier) {
+  Widget _buildVacationList(List<Vacation> vacations, VacationNotifier notifier) {
     if (vacations.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.beach_access, size: 48, color: Colors.grey),
+            Icon(Icons.event_busy, size: 48, color: Colors.grey),
             SizedBox(height: 16),
             Text(
-              'Keine Urlaubstage eingetragen',
+              'Keine Abwesenheiten eingetragen',
               style: TextStyle(color: Colors.grey),
             ),
             SizedBox(height: 8),
             Text(
-              'Tippe auf einen Tag, um Urlaub einzutragen',
+              'Tippe auf einen Tag, um Abwesenheit einzutragen',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
@@ -277,7 +294,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     }
 
     // Sortiert nach Datum
-    final sortedVacations = List.from(vacations)
+    final sortedVacations = List<Vacation>.from(vacations)
       ..sort((a, b) => a.day.compareTo(b.day));
 
     return ListView.builder(
@@ -285,14 +302,22 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       itemBuilder: (context, index) {
         final vacation = sortedVacations[index];
         return ListTile(
-          leading: const CircleAvatar(
-            backgroundColor: Colors.orange,
-            child: Icon(Icons.beach_access, color: Colors.white),
+          leading: CircleAvatar(
+            backgroundColor: vacation.type.color,
+            child: Icon(vacation.type.icon, color: Colors.white),
           ),
           title: Text(_formatDate(vacation.day)),
-          subtitle: vacation.description != null
-              ? Text(vacation.description!)
-              : null,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(vacation.type.label),
+              if (vacation.description != null)
+                Text(
+                  vacation.description!,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+            ],
+          ),
           trailing: IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: () => notifier.removeVacation(vacation.day),
@@ -308,37 +333,140 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     );
   }
 
-  Future<void> _showAddVacationDialog(VacationNotifier notifier) async {
-    final controller = TextEditingController();
+  Future<void> _showAddAbsenceDialog(VacationNotifier notifier) async {
+    final descController = TextEditingController();
+    AbsenceType selectedType = AbsenceType.vacation;
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Urlaub am ${_formatDate(_selectedDay!)}'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Beschreibung (optional)',
-            hintText: 'z.B. Sommerurlaub',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Abwesenheit am ${_formatDate(_selectedDay!)}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Typ', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AbsenceType.values.map((type) {
+                    final isSelected = selectedType == type;
+                    return ChoiceChip(
+                      avatar: Icon(type.icon, size: 16, color: isSelected ? Colors.white : type.color),
+                      label: Text(type.label),
+                      selected: isSelected,
+                      selectedColor: type.color,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setDialogState(() => selectedType = type);
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Beschreibung (optional)',
+                    hintText: 'z.B. Sommerurlaub, Grippe, ...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Speichern'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Speichern'),
-          ),
-        ],
       ),
     );
 
     if (result == true) {
       await notifier.addVacation(
         _selectedDay!,
-        description: controller.text.isEmpty ? null : controller.text,
+        type: selectedType,
+        description: descController.text.isEmpty ? null : descController.text,
+      );
+    }
+  }
+
+  Future<void> _showEditAbsenceDialog(VacationNotifier notifier, Vacation vacation) async {
+    final descController = TextEditingController(text: vacation.description);
+    AbsenceType selectedType = vacation.type;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Abwesenheit bearbeiten'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Typ', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AbsenceType.values.map((type) {
+                    final isSelected = selectedType == type;
+                    return ChoiceChip(
+                      avatar: Icon(type.icon, size: 16, color: isSelected ? Colors.white : type.color),
+                      label: Text(type.label),
+                      selected: isSelected,
+                      selectedColor: type.color,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setDialogState(() => selectedType = type);
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Beschreibung (optional)',
+                    hintText: 'z.B. Sommerurlaub, Grippe, ...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      await notifier.updateType(_selectedDay!, selectedType);
+      await notifier.updateDescription(
+        _selectedDay!,
+        descController.text.isEmpty ? null : descController.text,
       );
     }
   }
@@ -351,7 +479,10 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLegendItem(Colors.orange.shade200, 'Urlaub'),
+            ...AbsenceType.values.map((type) =>
+              _buildLegendItem(type.color.withOpacity(0.3), type.label, icon: type.icon)
+            ),
+            const Divider(),
             _buildLegendItem(Colors.red.shade100, 'Feiertag'),
             _buildLegendItem(Colors.blue.shade100, 'Heute'),
             _buildLegendItem(Colors.blue.shade300, 'Ausgewählt'),
@@ -367,7 +498,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     );
   }
 
-  Widget _buildLegendItem(Color color, String label) {
+  Widget _buildLegendItem(Color color, String label, {IconData? icon}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -376,6 +507,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
             width: 24,
             height: 24,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: icon != null ? Icon(icon, size: 14, color: Colors.white) : null,
           ),
           const SizedBox(width: 12),
           Text(label),
