@@ -1,12 +1,16 @@
 import 'dart:developer';
 import 'package:hive/hive.dart';
 import '../models/work_entry.dart';
+import '../models/geofence_zone.dart';
 import 'geofence_event_queue.dart';
+import 'geofence_notification_service.dart';
 
 /// Service zum Synchronisieren von Geofence-Events mit der Hive-Datenbank
 /// Wird im Foreground aufgerufen, wenn die App aktiv ist
 class GeofenceSyncService {
   final Box<WorkEntry> workBox;
+  final GeofenceNotificationService _notificationService =
+      GeofenceNotificationService();
 
   GeofenceSyncService(this.workBox);
 
@@ -78,8 +82,16 @@ class GeofenceSyncService {
 
     // Neue Arbeitszeit erstellen
     final entry = WorkEntry(start: event.timestamp);
-    await workBox.add(entry);
+    final key = await workBox.add(entry);
     log('GeofenceSyncService: Created new WorkEntry at ${event.timestamp}');
+
+    // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
+    final zoneName = _getZoneName(event.zoneId);
+    await _notificationService.showAutoStartNotification(
+      workEntryKey: key,
+      timestamp: event.timestamp,
+      zoneName: zoneName,
+    );
   }
 
   /// Behandelt ein EXIT-Event: Laufende Arbeitszeit stoppen
@@ -98,9 +110,40 @@ class GeofenceSyncService {
     }
 
     // Arbeitszeit beenden
+    final startTime = runningEntry.start;
     runningEntry.stop = event.timestamp;
     await runningEntry.save();
     log('GeofenceSyncService: Stopped WorkEntry at ${event.timestamp}');
+
+    // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
+    final zoneName = _getZoneName(event.zoneId);
+    final workedDuration = event.timestamp.difference(startTime);
+    await _notificationService.showAutoStopNotification(
+      workEntryKey: runningEntry.key as int,
+      timestamp: event.timestamp,
+      workedDuration: workedDuration,
+      zoneName: zoneName,
+    );
+  }
+
+  /// Holt den Zone-Namen aus der Hive-Box
+  String? _getZoneName(String zoneId) {
+    try {
+      final zonesBox = Hive.box<GeofenceZone>('geofence_zones');
+      final zone = zonesBox.values.firstWhere(
+        (z) => z.id == zoneId,
+        orElse: () => GeofenceZone(
+          id: '',
+          name: '',
+          latitude: 0,
+          longitude: 0,
+        ),
+      );
+      return zone.name.isNotEmpty ? zone.name : null;
+    } catch (e) {
+      log('Error getting zone name: $e');
+      return null;
+    }
   }
 
   /// Findet die aktuell laufende Arbeitszeit (ohne stop)

@@ -6,6 +6,7 @@ import '../providers.dart';
 import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
+import '../services/geofence_notification_service.dart';
 import '../services/reminder_service.dart';
 import '../models/work_entry.dart';
 import '../models/pause.dart';
@@ -29,6 +30,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   late final GeofenceSyncService _syncService;
   final _locationService = LocationTrackingService();
   final _reminderService = ReminderService();
+  final _geofenceNotificationService = GeofenceNotificationService();
   GeofenceStatus? _geofenceStatus;
   bool _isInitializing = true;
   String? _initError;
@@ -63,6 +65,13 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
     try {
       await _reminderService.init();
+      await _geofenceNotificationService.init();
+      // Pending Einsprüche verarbeiten (aus Background-Aktionen)
+      final objectionCount =
+          await _geofenceNotificationService.processPendingObjections();
+      if (objectionCount > 0) {
+        ref.invalidate(workListProvider);
+      }
       await _syncPendingEvents();
       await _initializeGeofence();
       await _loadMissingDays();
