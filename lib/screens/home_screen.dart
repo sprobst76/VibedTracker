@@ -9,12 +9,14 @@ import '../services/geofence_event_queue.dart';
 import '../services/reminder_service.dart';
 import '../models/work_entry.dart';
 import '../models/pause.dart';
+import '../theme/theme_colors.dart';
 import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../services/location_tracking_service.dart';
+import 'calendar_overview_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -187,7 +189,16 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         title: const Text('TimeTracker'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_today),
+            icon: const Icon(Icons.calendar_month),
+            tooltip: 'Kalenderübersicht',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CalendarOverviewScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.event_available),
+            tooltip: 'Abwesenheiten',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const VacationScreen()),
@@ -298,18 +309,18 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     String statusText;
 
     if (!running) {
-      bgColor = Colors.grey.shade100;
-      iconColor = Colors.grey;
+      bgColor = context.neutralBackground;
+      iconColor = context.neutralForeground;
       icon = Icons.pause_circle;
       statusText = 'Nicht aktiv';
     } else if (isPaused) {
-      bgColor = Colors.orange.shade50;
-      iconColor = Colors.orange;
+      bgColor = context.pauseBackground;
+      iconColor = context.pauseForeground;
       icon = Icons.coffee;
       statusText = 'Pause';
     } else {
-      bgColor = Colors.green.shade50;
-      iconColor = Colors.green;
+      bgColor = context.successBackground;
+      iconColor = context.successForeground;
       icon = Icons.play_circle;
       statusText = 'Arbeitszeit läuft';
     }
@@ -475,7 +486,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     final totalPause = _getTotalPauseDuration(entry);
 
     return Card(
-      color: activePause != null ? Colors.orange.shade50 : null,
+      color: activePause != null ? context.pauseBackground : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -586,14 +597,14 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: status.isInZone ? Colors.green.shade100 : Colors.grey.shade200,
+                    color: status.isInZone ? context.successBackground : context.neutralBackground,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     status.isInZone ? 'Im Bereich' : 'Außerhalb',
                     style: TextStyle(
                       fontSize: 12,
-                      color: status.isInZone ? Colors.green.shade700 : Colors.grey.shade700,
+                      color: status.isInZone ? context.successForeground : context.neutralForeground,
                     ),
                   ),
                 ),
@@ -631,17 +642,17 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildErrorCard() {
     return Card(
-      color: Colors.red.shade50,
+      color: context.errorBackground,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.red.shade700),
+            Icon(Icons.error_outline, color: context.errorForeground),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 _initError!,
-                style: TextStyle(color: Colors.red.shade700),
+                style: TextStyle(color: context.errorForeground),
               ),
             ),
             IconButton(
@@ -656,7 +667,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildMissingDaysCard() {
     return Card(
-      color: Colors.amber.shade50,
+      color: context.warningBackground,
       child: InkWell(
         onTap: _showMissingDaysDialog,
         borderRadius: BorderRadius.circular(12),
@@ -667,7 +678,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade600,
+                  color: context.isDark ? Colors.amber.shade700 : Colors.amber.shade600,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
@@ -690,20 +701,20 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                           : '${_missingDays.length} Tage ohne Eintrag',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.amber.shade900,
+                        color: context.warningForeground,
                       ),
                     ),
                     Text(
                       'Tippe hier um Details zu sehen',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.amber.shade700,
+                        color: context.warningForeground.withAlpha(180),
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.amber.shade700),
+              Icon(Icons.chevron_right, color: context.warningForeground),
             ],
           ),
         ),

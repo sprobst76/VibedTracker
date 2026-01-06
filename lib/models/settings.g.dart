@@ -28,13 +28,14 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       bundesland: fields[8] as String,
       enableReminders: fields[9] as bool,
       reminderHour: fields[10] as int,
+      nonWorkingWeekdays: (fields[11] as List?)?.cast<int>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -56,7 +57,9 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(9)
       ..write(obj.enableReminders)
       ..writeByte(10)
-      ..write(obj.reminderHour);
+      ..write(obj.reminderHour)
+      ..writeByte(11)
+      ..write(obj.nonWorkingWeekdays);
   }
 
   @override

@@ -6,6 +6,7 @@ import 'models/settings.dart';
 import 'models/weekly_hours_period.dart';
 import 'models/pause.dart';
 import 'models/geofence_zone.dart';
+import 'models/project.dart';
 
 // Hive-Box-Provider
 final workBoxProvider = Provider((ref) => Hive.box<WorkEntry>('work'));
@@ -13,6 +14,7 @@ final vacBoxProvider = Provider((ref) => Hive.box<Vacation>('vacation'));
 final setBoxProvider = Provider((ref) => Hive.box<Settings>('settings'));
 final weeklyHoursBoxProvider = Provider((ref) => Hive.box<WeeklyHoursPeriod>('weekly_hours_periods'));
 final geofenceZonesBoxProvider = Provider((ref) => Hive.box<GeofenceZone>('geofence_zones'));
+final projectsBoxProvider = Provider((ref) => Hive.box<Project>('projects'));
 
 // Settings-Provider
 final settingsProvider = StateNotifierProvider<SettingsNotifier, Settings>((ref) {
@@ -75,6 +77,23 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..reminderHour = hour.clamp(0, 23);
     state.save();
   }
+
+  void updateNonWorkingWeekdays(List<int> weekdays) {
+    state = state..nonWorkingWeekdays = weekdays;
+    state.save();
+  }
+
+  void toggleNonWorkingWeekday(int weekday) {
+    final current = List<int>.from(state.nonWorkingWeekdays);
+    if (current.contains(weekday)) {
+      current.remove(weekday);
+    } else {
+      current.add(weekday);
+    }
+    current.sort();
+    state = state..nonWorkingWeekdays = current;
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)
@@ -106,19 +125,38 @@ class WorkEntryNotifier extends StateNotifier<List<WorkEntry>> {
   Future<void> createManualEntry({
     required DateTime start,
     DateTime? stop,
+    WorkMode? workMode,
+    String? projectId,
+    List<String>? tags,
+    String? notes,
   }) async {
-    final entry = WorkEntry(start: start, stop: stop);
+    final entry = WorkEntry(
+      start: start,
+      stop: stop,
+      workModeIndex: workMode?.index ?? 0,
+      projectId: projectId,
+      tags: tags,
+      notes: notes,
+    );
     await box.add(entry);
     _refresh();
   }
 
-  /// Aktualisiert Start/Stop eines Eintrags
+  /// Aktualisiert einen Eintrag
   Future<void> updateEntry(WorkEntry entry, {
     DateTime? newStart,
     DateTime? newStop,
+    WorkMode? workMode,
+    String? projectId,
+    List<String>? tags,
+    String? notes,
   }) async {
     if (newStart != null) entry.start = newStart;
     if (newStop != null) entry.stop = newStop;
+    if (workMode != null) entry.workMode = workMode;
+    entry.projectId = projectId;  // Erlaubt null zum Entfernen
+    if (tags != null) entry.tags = tags;
+    entry.notes = notes;  // Erlaubt null zum Entfernen
     await entry.save();
     _refresh();
   }
@@ -296,6 +334,68 @@ class VacationNotifier extends StateNotifier<List<Vacation>> {
       return true;
     }).length;
   }
+
+  /// Fügt Abwesenheit für einen Zeitraum hinzu
+  /// Überspringt automatisch arbeitsfreie Tage (Wochenende + konfigurierte Tage)
+  /// Gibt die Anzahl der hinzugefügten Tage zurück
+  Future<int> addAbsencePeriod({
+    required DateTime from,
+    required DateTime to,
+    required AbsenceType type,
+    String? description,
+    required List<int> nonWorkingWeekdays,
+    List<DateTime> holidays = const [],
+  }) async {
+    int addedCount = 0;
+
+    // Stelle sicher dass from <= to
+    final startDate = from.isBefore(to) ? from : to;
+    final endDate = from.isBefore(to) ? to : from;
+
+    for (var date = startDate; !date.isAfter(endDate); date = date.add(const Duration(days: 1))) {
+      // Prüfe ob arbeitsfreier Wochentag
+      if (nonWorkingWeekdays.contains(date.weekday)) continue;
+
+      // Prüfe ob Feiertag
+      final isHoliday = holidays.any((h) =>
+        h.year == date.year && h.month == date.month && h.day == date.day
+      );
+      if (isHoliday) continue;
+
+      // Prüfe ob bereits Abwesenheit existiert
+      if (isVacationDay(date)) continue;
+
+      // Tag hinzufügen
+      await box.add(Vacation(day: date, description: description, type: type));
+      addedCount++;
+    }
+
+    _refresh();
+    return addedCount;
+  }
+
+  /// Berechnet die Anzahl der Arbeitstage in einem Zeitraum (Vorschau)
+  int countWorkingDaysInPeriod({
+    required DateTime from,
+    required DateTime to,
+    required List<int> nonWorkingWeekdays,
+    List<DateTime> holidays = const [],
+  }) {
+    int count = 0;
+    final startDate = from.isBefore(to) ? from : to;
+    final endDate = from.isBefore(to) ? to : from;
+
+    for (var date = startDate; !date.isAfter(endDate); date = date.add(const Duration(days: 1))) {
+      if (nonWorkingWeekdays.contains(date.weekday)) continue;
+      final isHoliday = holidays.any((h) =>
+        h.year == date.year && h.month == date.month && h.day == date.day
+      );
+      if (isHoliday) continue;
+      if (isVacationDay(date)) continue;
+      count++;
+    }
+    return count;
+  }
 }
 
 // Weekly Hours Periods Provider
@@ -413,5 +513,86 @@ class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
   /// Gibt alle aktiven Zonen zurück
   List<GeofenceZone> getActiveZones() {
     return state.where((z) => z.isActive).toList();
+  }
+}
+
+// Projects Provider
+final projectsProvider = StateNotifierProvider<ProjectsNotifier, List<Project>>((ref) {
+  final box = ref.watch(projectsBoxProvider);
+  return ProjectsNotifier(box);
+});
+
+class ProjectsNotifier extends StateNotifier<List<Project>> {
+  final Box<Project> box;
+
+  ProjectsNotifier(this.box) : super(box.values.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
+
+  void _refresh() {
+    state = box.values.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  }
+
+  /// Fügt ein neues Projekt hinzu
+  Future<void> addProject(Project project) async {
+    await box.add(project);
+    _refresh();
+  }
+
+  /// Erstellt ein neues Projekt mit generierter ID
+  Future<void> createProject({
+    required String name,
+    String? colorHex,
+  }) async {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final sortOrder = state.isEmpty ? 0 : state.map((p) => p.sortOrder).reduce((a, b) => a > b ? a : b) + 1;
+    final project = Project(
+      id: id,
+      name: name,
+      colorHex: colorHex,
+      sortOrder: sortOrder,
+    );
+    await box.add(project);
+    _refresh();
+  }
+
+  /// Aktualisiert ein Projekt
+  Future<void> updateProject(Project project, {
+    String? newName,
+    String? newColorHex,
+    bool? newIsActive,
+    int? newSortOrder,
+  }) async {
+    if (newName != null) project.name = newName;
+    if (newColorHex != null) project.colorHex = newColorHex;
+    if (newIsActive != null) project.isActive = newIsActive;
+    if (newSortOrder != null) project.sortOrder = newSortOrder;
+    await project.save();
+    _refresh();
+  }
+
+  /// Löscht ein Projekt
+  Future<void> deleteProject(Project project) async {
+    await project.delete();
+    _refresh();
+  }
+
+  /// Archiviert ein Projekt (setzt isActive auf false)
+  Future<void> archiveProject(Project project) async {
+    project.isActive = false;
+    await project.save();
+    _refresh();
+  }
+
+  /// Gibt alle aktiven Projekte zurück
+  List<Project> getActiveProjects() {
+    return state.where((p) => p.isActive).toList();
+  }
+
+  /// Findet ein Projekt anhand der ID
+  Project? getById(String id) {
+    try {
+      return state.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 }

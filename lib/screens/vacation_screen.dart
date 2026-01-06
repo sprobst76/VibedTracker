@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../providers.dart';
 import '../models/vacation.dart';
 import '../services/holiday_service.dart';
+import '../theme/theme_colors.dart';
 
 class VacationScreen extends ConsumerStatefulWidget {
   const VacationScreen({super.key});
@@ -162,23 +163,28 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
 
     Color? bgColor;
-    Color textColor = isOutside ? Colors.grey : Colors.black;
+    // Theme-aware text color
+    Color textColor = isOutside
+        ? context.subtleText
+        : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black;
 
     if (vacation != null) {
-      bgColor = vacation.type.color.withOpacity(0.3);
-      textColor = vacation.type.color;
+      // Theme-aware vacation colors
+      final vacationColor = vacation.type.getColor(context);
+      bgColor = vacationColor.withAlpha(context.isDark ? 80 : 77);
+      textColor = vacationColor;
     } else if (isHoliday) {
-      bgColor = Colors.red.shade100;
-      textColor = Colors.red.shade700;
+      bgColor = context.holidayBackground;
+      textColor = context.holidayForeground;
     } else if (isWeekend && !isOutside) {
-      textColor = Colors.grey.shade600;
+      textColor = context.subtleText;
     }
 
     if (isSelected) {
-      bgColor = Colors.blue.shade300;
+      bgColor = context.selectedBackground;
       textColor = Colors.white;
     } else if (isToday && vacation == null) {
-      bgColor = Colors.blue.shade100;
+      bgColor = context.todayBackground;
     }
 
     return Container(
@@ -186,7 +192,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         shape: BoxShape.circle,
-        border: isToday ? Border.all(color: Colors.blue, width: 2) : null,
+        border: isToday ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
       ),
       child: Center(
         child: Text(
@@ -224,12 +230,12 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
                 Chip(
                   avatar: Icon(vacation.type.icon, size: 16),
                   label: Text(vacation.type.label),
-                  backgroundColor: vacation.type.color.withOpacity(0.2),
+                  backgroundColor: vacation.type.getColor(context).withAlpha(context.isDark ? 80 : 51),
                 ),
               if (holiday != null)
                 Chip(
                   label: Text(holiday.localName),
-                  backgroundColor: Colors.red.shade100,
+                  backgroundColor: context.holidayBackground,
                 ),
             ],
           ),
@@ -238,7 +244,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 vacation.description!,
-                style: TextStyle(color: Colors.grey.shade700),
+                style: TextStyle(color: context.subtleText),
               ),
             ),
           const SizedBox(height: 8),
@@ -273,20 +279,20 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
   Widget _buildVacationList(List<Vacation> vacations, VacationNotifier notifier) {
     if (vacations.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_busy, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
+            Icon(Icons.event_busy, size: 48, color: context.subtleText),
+            const SizedBox(height: 16),
             Text(
               'Keine Abwesenheiten eingetragen',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: context.subtleText),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Tippe auf einen Tag, um Abwesenheit einzutragen',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(color: context.subtleText, fontSize: 12),
             ),
           ],
         ),
@@ -301,9 +307,10 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       itemCount: sortedVacations.length,
       itemBuilder: (context, index) {
         final vacation = sortedVacations[index];
+        final vacationColor = vacation.type.getColor(context);
         return ListTile(
           leading: CircleAvatar(
-            backgroundColor: vacation.type.color,
+            backgroundColor: vacationColor,
             child: Icon(vacation.type.icon, color: Colors.white),
           ),
           title: Text(_formatDate(vacation.day)),
@@ -314,7 +321,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
               if (vacation.description != null)
                 Text(
                   vacation.description!,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  style: TextStyle(color: context.subtleText, fontSize: 12),
                 ),
             ],
           ),
@@ -336,69 +343,215 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
   Future<void> _showAddAbsenceDialog(VacationNotifier notifier) async {
     final descController = TextEditingController();
     AbsenceType selectedType = AbsenceType.vacation;
+    bool isPeriodMode = false;
+    DateTime fromDate = _selectedDay ?? DateTime.now();
+    DateTime toDate = _selectedDay ?? DateTime.now();
+    final settings = ref.read(settingsProvider);
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<Map<String, dynamic>?>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Abwesenheit am ${_formatDate(_selectedDay!)}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Typ', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: AbsenceType.values.map((type) {
-                    final isSelected = selectedType == type;
-                    return ChoiceChip(
-                      avatar: Icon(type.icon, size: 16, color: isSelected ? Colors.white : type.color),
-                      label: Text(type.label),
-                      selected: isSelected,
-                      selectedColor: type.color,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setDialogState(() => selectedType = type);
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descController,
-                  decoration: const InputDecoration(
-                    labelText: 'Beschreibung (optional)',
-                    hintText: 'z.B. Sommerurlaub, Grippe, ...',
-                    border: OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Vorschau der Arbeitstage berechnen
+          int workingDaysCount = 0;
+          if (isPeriodMode) {
+            workingDaysCount = notifier.countWorkingDaysInPeriod(
+              from: fromDate,
+              to: toDate,
+              nonWorkingWeekdays: settings.nonWorkingWeekdays,
+              holidays: _holidays.keys.toList(),
+            );
+          }
+
+          return AlertDialog(
+            title: Text(isPeriodMode ? 'Abwesenheit eintragen' : 'Abwesenheit am ${_formatDate(_selectedDay!)}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Tab-Auswahl
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Einzeltag'),
+                          selected: !isPeriodMode,
+                          onSelected: (selected) {
+                            if (selected) setDialogState(() => isPeriodMode = false);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Zeitraum'),
+                          selected: isPeriodMode,
+                          onSelected: (selected) {
+                            if (selected) setDialogState(() => isPeriodMode = true);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+
+                  // Zeitraum-Auswahl (nur bei Zeitraum-Modus)
+                  if (isPeriodMode) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.calendar_today, size: 16),
+                            label: Text('Von: ${_formatDate(fromDate)}'),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: fromDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                              );
+                              if (picked != null) {
+                                setDialogState(() {
+                                  fromDate = picked;
+                                  if (toDate.isBefore(fromDate)) toDate = fromDate;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.calendar_today, size: 16),
+                            label: Text('Bis: ${_formatDate(toDate)}'),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: toDate,
+                                firstDate: fromDate,
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                              );
+                              if (picked != null) {
+                                setDialogState(() => toDate = picked);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Info-Box mit Vorschau
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: context.infoBackground,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: context.infoForeground, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              workingDaysCount == 0
+                                  ? 'Keine Arbeitstage im Zeitraum'
+                                  : '$workingDaysCount Arbeitstag${workingDaysCount == 1 ? '' : 'e'} werden eingetragen\n(Wochenende/freie Tage übersprungen)',
+                              style: TextStyle(color: context.infoForeground, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Typ-Auswahl
+                  const Text('Typ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: AbsenceType.values.map((type) {
+                      final isSelected = selectedType == type;
+                      return ChoiceChip(
+                        avatar: Icon(type.icon, size: 16, color: isSelected ? Colors.white : type.color),
+                        label: Text(type.label),
+                        selected: isSelected,
+                        selectedColor: type.color,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setDialogState(() => selectedType = type);
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Beschreibung
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Beschreibung (optional)',
+                      hintText: 'z.B. Sommerurlaub, Grippe, ...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Abbrechen'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Abbrechen'),
+              ),
+              ElevatedButton(
+                onPressed: (isPeriodMode && workingDaysCount == 0)
+                    ? null
+                    : () => Navigator.pop(context, {
+                        'isPeriod': isPeriodMode,
+                        'type': selectedType,
+                        'description': descController.text.isEmpty ? null : descController.text,
+                        'fromDate': fromDate,
+                        'toDate': toDate,
+                      }),
+                child: const Text('Speichern'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (result == true) {
-      await notifier.addVacation(
-        _selectedDay!,
-        type: selectedType,
-        description: descController.text.isEmpty ? null : descController.text,
-      );
+    if (result != null) {
+      if (result['isPeriod'] == true) {
+        // Zeitraum hinzufügen
+        final addedCount = await notifier.addAbsencePeriod(
+          from: result['fromDate'],
+          to: result['toDate'],
+          type: result['type'],
+          description: result['description'],
+          nonWorkingWeekdays: settings.nonWorkingWeekdays,
+          holidays: _holidays.keys.toList(),
+        );
+        if (mounted && addedCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$addedCount Abwesenheitstag${addedCount == 1 ? '' : 'e'} hinzugefügt')),
+          );
+        }
+      } else {
+        // Einzeltag hinzufügen
+        await notifier.addVacation(
+          _selectedDay!,
+          type: result['type'],
+          description: result['description'],
+        );
+      }
     }
   }
 
@@ -471,26 +624,31 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     }
   }
 
-  void _showLegend(BuildContext context) {
+  void _showLegend(BuildContext dialogContext) {
     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
+      context: dialogContext,
+      builder: (ctx) => AlertDialog(
         title: const Text('Legende'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ...AbsenceType.values.map((type) =>
-              _buildLegendItem(type.color.withOpacity(0.3), type.label, icon: type.icon)
+              _buildLegendItem(
+                type.getColor(ctx).withAlpha(ctx.isDark ? 80 : 77),
+                type.label,
+                icon: type.icon,
+                iconColor: type.getColor(ctx),
+              )
             ),
             const Divider(),
-            _buildLegendItem(Colors.red.shade100, 'Feiertag'),
-            _buildLegendItem(Colors.blue.shade100, 'Heute'),
-            _buildLegendItem(Colors.blue.shade300, 'Ausgewählt'),
+            _buildLegendItem(ctx.holidayBackground, 'Feiertag'),
+            _buildLegendItem(ctx.todayBackground, 'Heute'),
+            _buildLegendItem(ctx.selectedBackground, 'Ausgewählt'),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
           ),
         ],
@@ -498,7 +656,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     );
   }
 
-  Widget _buildLegendItem(Color color, String label, {IconData? icon}) {
+  Widget _buildLegendItem(Color color, String label, {IconData? icon, Color? iconColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -507,7 +665,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
             width: 24,
             height: 24,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: icon != null ? Icon(icon, size: 14, color: Colors.white) : null,
+            child: icon != null ? Icon(icon, size: 14, color: iconColor ?? Colors.white) : null,
           ),
           const SizedBox(width: 12),
           Text(label),

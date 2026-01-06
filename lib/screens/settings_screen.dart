@@ -8,6 +8,8 @@ import '../services/reminder_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
 import 'calendar_settings_screen.dart';
+import 'projects_screen.dart';
+import '../theme/theme_colors.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -68,6 +70,14 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Arbeitswoche Section
+          _buildWorkWeekSection(context, ref, settings, notifier),
+          const SizedBox(height: 16),
+
+          // Projekte Section
+          _buildProjectsSection(context, ref),
           const SizedBox(height: 16),
 
           // Locale Section
@@ -517,6 +527,142 @@ class SettingsScreen extends ConsumerWidget {
             _buildDeveloperOptions(context, ref),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildWorkWeekSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
+    const weekdayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Arbeitswoche',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Markiere Tage, an denen du normalerweise NICHT arbeitest.',
+              style: TextStyle(fontSize: 12, color: context.subtleText),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(7, (index) {
+                final weekday = index + 1; // 1-7
+                final isNonWorking = settings.nonWorkingWeekdays.contains(weekday);
+                return FilterChip(
+                  label: Text(weekdayNames[index]),
+                  selected: isNonWorking,
+                  selectedColor: Colors.red.shade100,
+                  checkmarkColor: Colors.red.shade700,
+                  onSelected: (_) => notifier.toggleNonWorkingWeekday(weekday),
+                );
+              }),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: context.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: context.infoForeground),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${settings.workingDaysPerWeek} Arbeitstage pro Woche'
+                      '${settings.nonWorkingWeekdays.isEmpty ? '' : ' (${_formatNonWorkingDays(settings.nonWorkingWeekdays)} frei)'}',
+                      style: TextStyle(fontSize: 11, color: context.infoForeground),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatNonWorkingDays(List<int> weekdays) {
+    const dayNames = {1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So'};
+    return weekdays.map((d) => dayNames[d]).join(', ');
+  }
+
+  Widget _buildProjectsSection(BuildContext context, WidgetRef ref) {
+    final projects = ref.watch(projectsProvider);
+    final activeProjects = projects.where((p) => p.isActive).toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Projekte',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (activeProjects.isNotEmpty)
+                  Text(
+                    '${activeProjects.length} aktiv',
+                    style: TextStyle(fontSize: 12, color: context.subtleText),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Ordne Arbeitszeiten Projekten zu.',
+              style: TextStyle(fontSize: 12, color: context.subtleText),
+            ),
+            const SizedBox(height: 12),
+            if (activeProjects.isNotEmpty) ...[
+              ...activeProjects.take(3).map((project) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: project.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(project.name),
+                  ],
+                ),
+              )),
+              if (activeProjects.length > 3)
+                Text(
+                  '+ ${activeProjects.length - 3} weitere...',
+                  style: TextStyle(fontSize: 12, color: context.subtleText),
+                ),
+              const SizedBox(height: 8),
+            ],
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProjectsScreen()),
+              ),
+              icon: const Icon(Icons.folder_open),
+              label: Text(activeProjects.isEmpty ? 'Projekte anlegen' : 'Projekte verwalten'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -42,6 +42,23 @@ extension AbsenceTypeExtension on AbsenceType {
     }
   }
 
+  /// Theme-aware Farbe für Dark/Light Mode
+  Color getColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    switch (this) {
+      case AbsenceType.vacation:
+        return isDark ? Colors.orange.shade300 : Colors.orange;
+      case AbsenceType.illness:
+        return isDark ? Colors.purple.shade300 : Colors.purple;
+      case AbsenceType.childSick:
+        return isDark ? Colors.pink.shade300 : Colors.pink;
+      case AbsenceType.specialLeave:
+        return isDark ? Colors.teal.shade300 : Colors.teal;
+      case AbsenceType.unpaid:
+        return isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    }
+  }
+
   IconData get icon {
     switch (this) {
       case AbsenceType.vacation:
