@@ -28,6 +28,13 @@ Datum: 2026-01-05
 
 ## Erledigte Features
 
+### ✅ 1. Excel Export (Monat) (2026-01-06)
+- Monatlichen Arbeitszeitbericht als Excel-Datei exportieren
+- Spalten: Datum, Wochentag, Start, Ende, Brutto, Pausen, Netto, Modus, Projekt, Notizen
+- Zusammenfassung mit Soll/Ist-Vergleich
+- Export über Download-Button im Monat-Tab
+- Dateien: `lib/services/export_service.dart`, `lib/screens/report_screen.dart`
+
 ### ✅ 2. Geofence-Benachrichtigungen mit Einspruch (2026-01-06)
 - Benachrichtigung bei automatischem Start/Stop
 - "Einspruch"-Button zum Rückgängigmachen
@@ -47,10 +54,6 @@ Datum: 2026-01-05
 ---
 
 ## Feature-Ideen (Backlog)
-
-### 1. Excel Export (Monat)
-- Monatlichen Arbeitszeitbericht als Excel-Datei exportieren
-- Spalten: Datum, Start, Ende, Pausen, Arbeitszeit, Projekt, etc.
 
 ### 5. Arbeitszeit gemäß Arbeitsgesetzen
 - Monats- und Wochenarbeitszeit korrekt berechnen

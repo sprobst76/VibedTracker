@@ -40,6 +40,10 @@ dependencies:
   local_auth: ^2.3.0               # Biometrische Authentifizierung
   cryptography: ^2.7.0             # AES-GCM, Argon2id
 
+  # Export
+  excel: ^4.0.3                    # Excel-Datei-Erzeugung
+  share_plus: ^10.1.4              # Teilen/Speichern von Dateien
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

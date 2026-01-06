@@ -4,6 +4,7 @@ import '../providers.dart';
 import '../models/work_entry.dart';
 import '../models/vacation.dart';
 import '../services/holiday_service.dart';
+import '../services/export_service.dart';
 
 // Re-export AbsenceType for convenience
 export '../models/vacation.dart' show AbsenceType;
@@ -21,8 +22,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _selectedYear = DateTime.now().year;
   final HolidayService _holidayService = HolidayService();
+  final ExportService _exportService = ExportService();
   Map<DateTime, Holiday> _holidays = {};
   String? _loadedBundesland;
+  bool _isExporting = false;
 
   static DateTime _getWeekStart(DateTime date) {
     final daysFromMonday = date.weekday - 1;
@@ -64,6 +67,48 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     }
   }
 
+  Future<void> _exportMonth(
+    List<WorkEntry> entries,
+    double weeklyHours,
+    WeeklyHoursPeriodsNotifier periodsNotifier,
+  ) async {
+    setState(() => _isExporting = true);
+
+    try {
+      final projects = ref.read(projectsProvider);
+      final vacations = ref.read(vacationProvider);
+      final monthData = _calculateMonthData(entries, vacations, periodsNotifier);
+
+      await _exportService.exportMonthToExcel(
+        entries: entries,
+        month: _selectedMonth,
+        projects: projects,
+        monthData: MonthExportData(
+          workDays: monthData.workDays,
+          holidayCount: monthData.holidayCount,
+          targetHours: monthData.targetHours,
+          totalWorked: monthData.totalWorked,
+        ),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Export erfolgreich')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export fehlgeschlagen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final workEntries = ref.watch(workListProvider);
@@ -79,6 +124,28 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     return Scaffold(
       appBar: AppBar(
         title: const Text('Berichte'),
+        actions: [
+          // Export-Button nur im Monat-Tab anzeigen
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              if (_tabController.index != 1) return const SizedBox.shrink();
+              return IconButton(
+                icon: _isExporting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download),
+                tooltip: 'Als Excel exportieren',
+                onPressed: _isExporting
+                    ? null
+                    : () => _exportMonth(workEntries, settings.weeklyHours, periodsNotifier),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
