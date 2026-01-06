@@ -43,10 +43,14 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _checkBiometrics() async {
-    if (!widget.canUseBiometrics) return;
+    if (!widget.canUseBiometrics) {
+      debugPrint('LockScreen: Biometrics disabled via widget parameter');
+      return;
+    }
 
     final available = await _secureStorage.isBiometricsAvailable();
     final enabled = await _secureStorage.isBiometricsEnabled();
+    debugPrint('LockScreen: Biometrics available=$available, enabled=$enabled');
 
     setState(() {
       _biometricsAvailable = available;
@@ -60,17 +64,24 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _authenticateWithBiometrics() async {
+    debugPrint('LockScreen: Starting biometric authentication...');
     setState(() => _isLoading = true);
 
-    final success = await _secureStorage.authenticateWithBiometrics(
-      reason: 'Entsperren um auf VibedTracker zuzugreifen',
-    );
+    try {
+      final success = await _secureStorage.authenticateWithBiometrics(
+        reason: 'Entsperren um auf VibedTracker zuzugreifen',
+      );
 
-    setState(() => _isLoading = false);
+      debugPrint('LockScreen: Biometric result: $success');
+      setState(() => _isLoading = false);
 
-    if (success) {
-      await _secureStorage.updateLastActivity();
-      widget.onUnlocked();
+      if (success) {
+        await _secureStorage.updateLastActivity();
+        widget.onUnlocked();
+      }
+    } catch (e) {
+      debugPrint('LockScreen: Biometric error: $e');
+      setState(() => _isLoading = false);
     }
   }
 
@@ -248,7 +259,7 @@ class _LockScreenState extends State<LockScreen> {
             // Leerer Platz oder Biometrics
             _biometricsAvailable && _biometricsEnabled
                 ? _buildIconButton(Icons.fingerprint, _authenticateWithBiometrics)
-                : const SizedBox(width: 80, height: 80),
+                : const SizedBox(width: 88, height: 88), // 72 + 2*8 padding
             _buildDigitButton('0'),
             _buildIconButton(Icons.backspace_outlined, _onBackspacePressed),
           ],
@@ -292,18 +303,18 @@ class _LockScreenState extends State<LockScreen> {
   Widget _buildIconButton(IconData icon, VoidCallback onPressed) {
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isLoading ? null : onPressed,
-          borderRadius: BorderRadius.circular(40),
-          child: SizedBox(
-            width: 72,
-            height: 72,
-            child: Center(
-              child: Icon(icon, size: 28),
-            ),
+      child: SizedBox(
+        width: 72,
+        height: 72,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : onPressed,
+          style: ElevatedButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.primary,
           ),
+          child: Icon(icon, size: 32),
         ),
       ),
     );
