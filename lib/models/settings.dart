@@ -39,6 +39,10 @@ class Settings extends HiveObject {
   int annualVacationDays; // Jahresurlaub in Tagen (Standard: 30)
   @HiveField(13)
   bool enableVacationCarryover; // Resturlaub ins nächste Jahr übertragen
+  @HiveField(14)
+  double christmasEveWorkFactor; // 24.12.: 0.0=frei, 0.5=halber Tag, 1.0=voll
+  @HiveField(15)
+  double newYearsEveWorkFactor; // 31.12.: 0.0=frei, 0.5=halber Tag, 1.0=voll
 
   Settings({
     this.weeklyHours = 40.0,
@@ -55,6 +59,8 @@ class Settings extends HiveObject {
     List<int>? nonWorkingWeekdays,
     this.annualVacationDays = 30, // Default: 30 Tage
     this.enableVacationCarryover = true, // Default: Übertrag erlaubt
+    this.christmasEveWorkFactor = 0.5, // Default: halber Tag
+    this.newYearsEveWorkFactor = 0.5, // Default: halber Tag
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück
@@ -68,4 +74,25 @@ class Settings extends HiveObject {
 
   /// Anzahl der Arbeitstage pro Woche
   int get workingDaysPerWeek => 7 - nonWorkingWeekdays.length;
+
+  /// Prüft ob ein Datum Heiligabend ist
+  bool isChristmasEve(DateTime date) => date.month == 12 && date.day == 24;
+
+  /// Prüft ob ein Datum Silvester ist
+  bool isNewYearsEve(DateTime date) => date.month == 12 && date.day == 31;
+
+  /// Gibt den Arbeitsfaktor für ein spezielles Datum zurück (1.0 = normal)
+  /// Berücksichtigt Heiligabend und Silvester
+  double getWorkFactorForDate(DateTime date) {
+    if (isChristmasEve(date)) return christmasEveWorkFactor;
+    if (isNewYearsEve(date)) return newYearsEveWorkFactor;
+    return 1.0;
+  }
+
+  /// Menschenlesbare Beschreibung des Arbeitsfaktors
+  static String workFactorLabel(double factor) {
+    if (factor <= 0.0) return 'Frei';
+    if (factor <= 0.5) return 'Halber Tag';
+    return 'Voller Tag';
+  }
 }

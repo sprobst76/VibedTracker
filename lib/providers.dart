@@ -106,6 +106,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..enableVacationCarryover = enabled;
     state.save();
   }
+
+  void updateChristmasEveWorkFactor(double factor) {
+    state = state..christmasEveWorkFactor = factor.clamp(0.0, 1.0);
+    state.save();
+  }
+
+  void updateNewYearsEveWorkFactor(double factor) {
+    state = state..newYearsEveWorkFactor = factor.clamp(0.0, 1.0);
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

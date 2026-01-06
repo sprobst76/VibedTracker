@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 import '../models/work_entry.dart';
 import '../models/vacation.dart';
+import '../models/settings.dart';
 import '../services/holiday_service.dart';
 import '../services/export_service.dart';
 
@@ -77,7 +78,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     try {
       final projects = ref.read(projectsProvider);
       final vacations = ref.read(vacationProvider);
-      final monthData = _calculateMonthData(entries, vacations, periodsNotifier);
+      final settings = ref.read(settingsProvider);
+      final monthData = _calculateMonthData(entries, vacations, periodsNotifier, settings);
 
       await _exportService.exportMonthToExcel(
         entries: entries,
@@ -158,9 +160,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildWeekView(workEntries, vacations, settings.weeklyHours, periodsNotifier),
-          _buildMonthView(workEntries, vacations, settings.weeklyHours, periodsNotifier),
-          _buildYearView(workEntries, vacations, settings.weeklyHours, periodsNotifier),
+          _buildWeekView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
+          _buildMonthView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
+          _buildYearView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
         ],
       ),
     );
@@ -172,8 +174,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<Vacation> vacations,
     double weeklyHours,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
-    final weekData = _calculateWeekData(entries, vacations, weeklyHours, periodsNotifier);
+    final weekData = _calculateWeekData(entries, vacations, weeklyHours, periodsNotifier, settings);
 
     return Column(
       children: [
@@ -312,8 +315,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<Vacation> vacations,
     double weeklyHours,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
-    final monthData = _calculateMonthData(entries, vacations, periodsNotifier);
+    final monthData = _calculateMonthData(entries, vacations, periodsNotifier, settings);
     final isCurrentMonth = _selectedMonth.year == DateTime.now().year &&
         _selectedMonth.month == DateTime.now().month;
 
@@ -484,8 +488,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<Vacation> vacations,
     double weeklyHours,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
-    final yearData = _calculateYearData(entries, vacations, periodsNotifier);
+    final yearData = _calculateYearData(entries, vacations, periodsNotifier, settings);
     final isCurrentYear = _selectedYear == DateTime.now().year;
 
     return Column(
@@ -765,6 +770,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<Vacation> vacations,
     double defaultWeeklyHours,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
     final days = <DayData>[];
     var totalWorked = 0.0;
@@ -777,7 +783,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
 
     for (var i = 0; i < 7; i++) {
       final day = _selectedWeekStart.add(Duration(days: i));
-      final result = _calculateDayData(day, entries, vacations, periodsNotifier);
+      final result = _calculateDayData(day, entries, vacations, periodsNotifier, settings: settings);
 
       days.add(result.dayData);
       totalWorked += result.dayData.workedHours;
@@ -811,6 +817,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<WorkEntry> entries,
     List<Vacation> vacations,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
     var totalWorked = 0.0;
     var totalPause = 0.0;
@@ -824,7 +831,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
 
     for (var d = 1; d <= daysInMonth; d++) {
       final day = DateTime(_selectedMonth.year, _selectedMonth.month, d);
-      final result = _calculateDayData(day, entries, vacations, periodsNotifier);
+      final result = _calculateDayData(day, entries, vacations, periodsNotifier, settings: settings);
 
       totalWorked += result.dayData.workedHours;
       totalPause += result.dayData.pauseHours;
@@ -856,6 +863,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     List<WorkEntry> entries,
     List<Vacation> vacations,
     WeeklyHoursPeriodsNotifier periodsNotifier,
+    Settings settings,
   ) {
     var totalWorked = 0.0;
     var totalTargetHours = 0.0;
@@ -865,7 +873,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     for (var m = 1; m <= 12; m++) {
       final savedMonth = _selectedMonth;
       _selectedMonth = DateTime(_selectedYear, m);
-      final monthData = _calculateMonthData(entries, vacations, periodsNotifier);
+      final monthData = _calculateMonthData(entries, vacations, periodsNotifier, settings);
       _selectedMonth = savedMonth;
 
       monthlyData[m] = monthData;
@@ -886,8 +894,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     DateTime day,
     List<WorkEntry> entries,
     List<Vacation> vacations,
-    WeeklyHoursPeriodsNotifier periodsNotifier,
-  ) {
+    WeeklyHoursPeriodsNotifier periodsNotifier, {
+    Settings? settings,
+  }) {
     final normalizedDay = DateTime(day.year, day.month, day.day);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
     final holiday = _holidays[normalizedDay];
@@ -901,7 +910,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
       absence = null;
     }
 
-    final dailyHours = periodsNotifier.getDailyHoursForDate(day);
+    var dailyHours = periodsNotifier.getDailyHoursForDate(day);
+
+    // Heiligabend und Silvester: Arbeitsfaktor anwenden
+    if (settings != null) {
+      final workFactor = settings.getWorkFactorForDate(day);
+      dailyHours *= workFactor;
+    }
+
     var dayWorked = 0.0;
     var dayPause = 0.0;
     var dayEntries = 0;
@@ -921,7 +937,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     }
 
     final isPaidAbsence = absence != null && absence.type.isPaid;
-    final countsAsWorkDay = !isWeekend && !isHoliday && !isPaidAbsence;
+    // Bei Arbeitsfaktor 0 (frei) zählt der Tag nicht als Arbeitstag
+    final workFactor = settings?.getWorkFactorForDate(day) ?? 1.0;
+    final isSpecialDayOff = workFactor <= 0.0;
+    final countsAsWorkDay = !isWeekend && !isHoliday && !isPaidAbsence && !isSpecialDayOff;
 
     return _DayCalculationResult(
       dayData: DayData(
@@ -933,6 +952,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
         holidayName: holiday?.localName,
         isAbsent: absence != null,
         absenceType: absence?.type,
+        specialDayFactor: workFactor < 1.0 && workFactor > 0.0 ? workFactor : null,
       ),
       absence: absence,
       countsAsWorkDay: countsAsWorkDay,
@@ -991,6 +1011,7 @@ class DayData {
   final String? holidayName;
   final bool isAbsent;
   final AbsenceType? absenceType;
+  final double? specialDayFactor; // Für Heiligabend/Silvester (0.5 = halber Tag)
 
   DayData({
     required this.date,
@@ -1001,9 +1022,13 @@ class DayData {
     this.holidayName,
     required this.isAbsent,
     this.absenceType,
+    this.specialDayFactor,
   });
 
   bool get isVacation => isAbsent;
+
+  /// Ob dieser Tag ein verkürzter Arbeitstag ist (Heiligabend/Silvester)
+  bool get isReducedWorkDay => specialDayFactor != null && specialDayFactor! < 1.0;
 }
 
 class WeekData {

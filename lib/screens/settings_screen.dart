@@ -65,6 +65,10 @@ class SettingsScreen extends ConsumerWidget {
           _buildVacationSection(context, ref, settings, notifier),
           const SizedBox(height: 16),
 
+          // Heiligabend & Silvester Section
+          _buildSpecialDaysSection(context, ref, settings, notifier),
+          const SizedBox(height: 16),
+
           // Projekte Section
           _buildProjectsSection(context, ref),
           const SizedBox(height: 16),
@@ -699,6 +703,96 @@ class SettingsScreen extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       '${DateTime.now().year}: ${stats.usedDays.toStringAsFixed(0)} von ${stats.totalEntitlement.toStringAsFixed(0)} Tagen genommen, ${stats.remainingDays.toStringAsFixed(0)} verbleibend',
+                      style: TextStyle(fontSize: 11, color: context.infoForeground),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpecialDaysSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Heiligabend & Silvester',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Wie werden 24.12. und 31.12. im Arbeitszeitkonto behandelt?',
+              style: TextStyle(fontSize: 12, color: context.subtleText),
+            ),
+            const SizedBox(height: 16),
+            // Heiligabend
+            Row(
+              children: [
+                const Expanded(
+                  flex: 2,
+                  child: Text('24. Dezember'),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: SegmentedButton<double>(
+                    segments: const [
+                      ButtonSegment(value: 0.0, label: Text('Frei')),
+                      ButtonSegment(value: 0.5, label: Text('½ Tag')),
+                      ButtonSegment(value: 1.0, label: Text('Voll')),
+                    ],
+                    selected: {settings.christmasEveWorkFactor},
+                    onSelectionChanged: (values) {
+                      notifier.updateChristmasEveWorkFactor(values.first);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Silvester
+            Row(
+              children: [
+                const Expanded(
+                  flex: 2,
+                  child: Text('31. Dezember'),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: SegmentedButton<double>(
+                    segments: const [
+                      ButtonSegment(value: 0.0, label: Text('Frei')),
+                      ButtonSegment(value: 0.5, label: Text('½ Tag')),
+                      ButtonSegment(value: 1.0, label: Text('Voll')),
+                    ],
+                    selected: {settings.newYearsEveWorkFactor},
+                    onSelectionChanged: (values) {
+                      notifier.updateNewYearsEveWorkFactor(values.first);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: context.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: context.infoForeground),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Diese Einstellung beeinflusst die Soll-Arbeitszeit an diesen Tagen.',
                       style: TextStyle(fontSize: 11, color: context.infoForeground),
                     ),
                   ),

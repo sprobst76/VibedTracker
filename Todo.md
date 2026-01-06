@@ -58,6 +58,13 @@ Datum: 2026-01-05
 - Übertrag pro Jahr manuell editierbar
 - Dateien: `lib/models/vacation_quota.dart`, `lib/providers.dart`, `lib/screens/vacation_screen.dart`, `lib/screens/settings_screen.dart`
 
+### ✅ 7. Heiligabend & Silvester (2026-01-06)
+- Einstellbar in Settings: Frei / Halber Tag / Voller Tag
+- Beeinflusst Soll-Arbeitszeit an 24.12. und 31.12.
+- Standard: Halber Tag (0.5)
+- Integration in Berichte (Wochen-, Monats-, Jahresansicht)
+- Dateien: `lib/models/settings.dart`, `lib/providers.dart`, `lib/screens/settings_screen.dart`, `lib/screens/report_screen.dart`
+
 ---
 
 ## Feature-Ideen (Backlog)
@@ -66,10 +73,5 @@ Datum: 2026-01-05
 - Monats- und Wochenarbeitszeit korrekt berechnen
 - Klare Verrechnung von Urlaub, Feiertagen, Krankheit mit Sollzeit
 - Dokumentieren wie die Berechnung funktioniert
-
-### 7. Heiligabend & Silvester
-- Klarstellen wie 24.12. und 31.12. im Arbeitszeitkonto gelten
-- Oft halbe Arbeitstage oder frei nach Tarif/Vertrag
-- Einstellbar machen oder dokumentieren
 
 Datum: 2026-01-06

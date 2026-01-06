@@ -31,13 +31,15 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       nonWorkingWeekdays: (fields[11] as List?)?.cast<int>(),
       annualVacationDays: fields[12] as int,
       enableVacationCarryover: fields[13] as bool,
+      christmasEveWorkFactor: fields[14] as double,
+      newYearsEveWorkFactor: fields[15] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -65,7 +67,11 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(12)
       ..write(obj.annualVacationDays)
       ..writeByte(13)
-      ..write(obj.enableVacationCarryover);
+      ..write(obj.enableVacationCarryover)
+      ..writeByte(14)
+      ..write(obj.christmasEveWorkFactor)
+      ..writeByte(15)
+      ..write(obj.newYearsEveWorkFactor);
   }
 
   @override
