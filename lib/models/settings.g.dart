@@ -24,13 +24,14 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       enableLocationTracking: fields[4] as bool,
       googleCalendarEnabled: fields[5] as bool,
       googleCalendarId: fields[6] as String?,
+      themeModeIndex: fields[7] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(5)
       ..write(obj.googleCalendarEnabled)
       ..writeByte(6)
-      ..write(obj.googleCalendarId);
+      ..write(obj.googleCalendarId)
+      ..writeByte(7)
+      ..write(obj.themeModeIndex);
   }
 
   @override

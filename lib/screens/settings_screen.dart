@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
+import '../models/settings.dart';
 import '../services/test_data_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
@@ -102,31 +103,40 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Dark Mode Section
+          // Theme Mode Section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Dark Mode',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          settings.isDarkMode ? 'Dunkles Design aktiv' : 'Helles Design aktiv',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
+                  const Text(
+                    'Design',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  Switch(
-                    value: settings.isDarkMode,
-                    onChanged: (value) => notifier.updateThemeMode(value),
+                  const SizedBox(height: 12),
+                  SegmentedButton<AppThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: AppThemeMode.system,
+                        icon: Icon(Icons.brightness_auto),
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: AppThemeMode.light,
+                        icon: Icon(Icons.light_mode),
+                        label: Text('Hell'),
+                      ),
+                      ButtonSegment(
+                        value: AppThemeMode.dark,
+                        icon: Icon(Icons.dark_mode),
+                        label: Text('Dunkel'),
+                      ),
+                    ],
+                    selected: {settings.themeMode},
+                    onSelectionChanged: (Set<AppThemeMode> selection) {
+                      notifier.updateThemeMode(selection.first);
+                    },
                   ),
                 ],
               ),

@@ -41,8 +41,8 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state.save();
   }
 
-  void updateThemeMode(bool isDark) {
-    state = state..isDarkMode = isDark;
+  void updateThemeMode(AppThemeMode mode) {
+    state = state..themeMode = mode;
     state.save();
   }
 

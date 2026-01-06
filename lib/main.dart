@@ -38,11 +38,25 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
 
+    // Konvertiere AppThemeMode zu Flutter ThemeMode
+    ThemeMode themeMode;
+    switch (settings.themeMode) {
+      case AppThemeMode.system:
+        themeMode = ThemeMode.system;
+        break;
+      case AppThemeMode.light:
+        themeMode = ThemeMode.light;
+        break;
+      case AppThemeMode.dark:
+        themeMode = ThemeMode.dark;
+        break;
+    }
+
     return MaterialApp(
       title: 'TimeTracker',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: themeMode,
       home: const HomeScreen(),
     );
   }
