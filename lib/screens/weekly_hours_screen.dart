@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weekly_hours_period.dart';
 import '../providers.dart';
@@ -228,28 +229,30 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
                 // Weekly Hours
                 const Text('Wochenstunden', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        value: weeklyHours,
-                        min: 5,
-                        max: 60,
-                        divisions: 55,
-                        label: '${weeklyHours.toStringAsFixed(1)}h',
-                        onChanged: (value) {
-                          setDialogState(() => weeklyHours = value);
-                        },
-                      ),
-                    ),
-                    SizedBox(
-                      width: 50,
-                      child: Text(
-                        '${weeklyHours.toStringAsFixed(1)}h',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                TextFormField(
+                  initialValue: weeklyHours.toStringAsFixed(1).replaceAll('.', ','),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    suffixText: 'h / Woche',
+                    hintText: 'z.B. 38,5',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
                   ],
+                  onChanged: (value) {
+                    // Komma durch Punkt ersetzen für Parsing
+                    final normalized = value.replaceAll(',', '.');
+                    final parsed = double.tryParse(normalized);
+                    if (parsed != null && parsed >= 1 && parsed <= 80) {
+                      weeklyHours = parsed;
+                    }
+                  },
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Gültiger Bereich: 1 - 80 Stunden',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 16),
 

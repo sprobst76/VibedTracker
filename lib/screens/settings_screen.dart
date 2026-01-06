@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 import '../models/settings.dart';
@@ -33,30 +34,13 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Wöchentliche Arbeitszeit',
+                    'Wöchentliche Arbeitszeit (Standard)',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Slider(
-                          value: settings.weeklyHours,
-                          min: 10,
-                          max: 60,
-                          divisions: 50,
-                          label: '${settings.weeklyHours.toStringAsFixed(1)} h',
-                          onChanged: (value) => notifier.updateWeeklyHours(value),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 60,
-                        child: Text(
-                          '${settings.weeklyHours.toStringAsFixed(1)} h',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
+                  _WeeklyHoursInput(
+                    value: settings.weeklyHours,
+                    onChanged: notifier.updateWeeklyHours,
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
@@ -833,6 +817,110 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Eingabefeld für Wochenstunden mit manueller Werteingabe
+class _WeeklyHoursInput extends StatefulWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _WeeklyHoursInput({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  State<_WeeklyHoursInput> createState() => _WeeklyHoursInputState();
+}
+
+class _WeeklyHoursInputState extends State<_WeeklyHoursInput> {
+  late TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.value.toStringAsFixed(1).replaceAll('.', ','),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_WeeklyHoursInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Nur aktualisieren wenn sich der Wert extern geändert hat
+    final currentText = _controller.text.replaceAll(',', '.');
+    final currentValue = double.tryParse(currentText);
+    if (currentValue == null || (currentValue - widget.value).abs() > 0.01) {
+      _controller.text = widget.value.toStringAsFixed(1).replaceAll('.', ',');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onSubmitted(String value) {
+    final normalized = value.replaceAll(',', '.');
+    final parsed = double.tryParse(normalized);
+
+    if (parsed == null) {
+      setState(() => _errorText = 'Ungültige Zahl');
+      return;
+    }
+
+    if (parsed < 1 || parsed > 80) {
+      setState(() => _errorText = 'Wert muss zwischen 1 und 80 liegen');
+      return;
+    }
+
+    setState(() => _errorText = null);
+    widget.onChanged(parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 120,
+              child: TextField(
+                controller: _controller,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  suffixText: 'h',
+                  isDense: true,
+                  errorText: _errorText,
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                ],
+                textAlign: TextAlign.center,
+                onSubmitted: _onSubmitted,
+                onEditingComplete: () => _onSubmitted(_controller.text),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'pro Woche',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Eingabe bestätigen mit Enter (1-80h)',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
+      ],
     );
   }
 }
