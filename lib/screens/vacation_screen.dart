@@ -168,8 +168,22 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
         ? context.subtleText
         : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black;
 
-    if (vacation != null) {
-      // Theme-aware vacation colors
+    // Priorität: Feiertag > Krankheit > Urlaub
+    // Feiertag überschreibt Urlaub visuell (außer bei medizinischer Abwesenheit)
+    final bool holidayOverridesVacation = isHoliday &&
+        (vacation == null || vacation.type.isVacation || vacation.type == AbsenceType.unpaid);
+
+    if (vacation != null && vacation.type.isMedical) {
+      // Krankheit/Kind krank hat Priorität
+      final vacationColor = vacation.type.getColor(context);
+      bgColor = vacationColor.withAlpha(context.isDark ? 80 : 77);
+      textColor = vacationColor;
+    } else if (holidayOverridesVacation) {
+      // Feiertag überschreibt Urlaub visuell
+      bgColor = context.holidayBackground;
+      textColor = context.holidayForeground;
+    } else if (vacation != null) {
+      // Andere Abwesenheitstypen
       final vacationColor = vacation.type.getColor(context);
       bgColor = vacationColor.withAlpha(context.isDark ? 80 : 77);
       textColor = vacationColor;
@@ -245,6 +259,31 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
               child: Text(
                 vacation.description!,
                 style: TextStyle(color: context.subtleText),
+              ),
+            ),
+          // Hinweis bei Urlaub auf Feiertag
+          if (holiday != null && vacation != null && vacation.type.isVacation)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withAlpha(context.isDark ? 40 : 30),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withAlpha(100)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Feiertag – kein Urlaubstag wird verbraucht',
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade800),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           const SizedBox(height: 8),

@@ -77,6 +77,30 @@ extension AbsenceTypeExtension on AbsenceType {
   /// Ob dieser Typ als bezahlte Arbeitszeit gilt (für Soll-Berechnung)
   /// Unbezahlt frei reduziert die Soll-Stunden NICHT
   bool get isPaid => this != AbsenceType.unpaid;
+
+  /// Ob dieser Typ eine medizinische Abwesenheit ist (höhere Priorität als Urlaub)
+  /// Krankheit und Kind krank überschreiben Urlaub
+  bool get isMedical => this == AbsenceType.illness || this == AbsenceType.childSick;
+
+  /// Ob dieser Typ ein regulärer Urlaubstag ist (wird von Feiertagen überschrieben)
+  bool get isVacation => this == AbsenceType.vacation;
+
+  /// Priorität für Anzeige (höher = wichtiger)
+  /// Feiertag: 100, Krankheit: 50, Kind krank: 50, Sonderurlaub: 30, Urlaub: 20, Unbezahlt: 10
+  int get displayPriority {
+    switch (this) {
+      case AbsenceType.illness:
+        return 50;
+      case AbsenceType.childSick:
+        return 50;
+      case AbsenceType.specialLeave:
+        return 30;
+      case AbsenceType.vacation:
+        return 20;
+      case AbsenceType.unpaid:
+        return 10;
+    }
+  }
 }
 
 @HiveType(typeId: 2)

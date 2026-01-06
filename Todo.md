@@ -38,6 +38,12 @@ Datum: 2026-01-05
 - In Settings und Perioden-Dialog
 - Dateien: `lib/screens/settings_screen.dart`, `lib/screens/weekly_hours_screen.dart`
 
+### ✅ 4. Prioritäten bei Abwesenheiten (2026-01-06)
+- Feiertag überschreibt Urlaub visuell im Kalender
+- Krankheit/Kind krank hat Priorität über Urlaub
+- Hinweis "Feiertag – kein Urlaubstag wird verbraucht"
+- Dateien: `lib/models/vacation.dart`, `lib/screens/calendar_overview_screen.dart`, `lib/screens/vacation_screen.dart`
+
 ---
 
 ## Feature-Ideen (Backlog)
@@ -45,12 +51,6 @@ Datum: 2026-01-05
 ### 1. Excel Export (Monat)
 - Monatlichen Arbeitszeitbericht als Excel-Datei exportieren
 - Spalten: Datum, Start, Ende, Pausen, Arbeitszeit, Projekt, etc.
-
-### 4. Prioritäten bei Abwesenheiten
-- Feiertage überschreiben Urlaub (kein Urlaubstag verbraucht)
-- Krankheit überschreibt Urlaub (Urlaubstag bleibt erhalten)
-- Kalenderanzeigen entsprechend anpassen/klarstellen
-- Logik: Feiertag > Krankheit > Urlaub
 
 ### 5. Arbeitszeit gemäß Arbeitsgesetzen
 - Monats- und Wochenarbeitszeit korrekt berechnen

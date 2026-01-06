@@ -235,14 +235,28 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
       }
     }
 
-    // Hintergrundfarbe bestimmen
+    // Hintergrundfarbe bestimmen mit Priorität:
+    // Feiertag (100) > Krankheit (50) > Sonderurlaub (30) > Urlaub (20) > Unbezahlt (10)
     Color? bgColor;
     Color textColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black;
+
+    // Feiertag hat höchste Priorität (außer bei medizinischer Abwesenheit)
+    final bool holidayOverridesVacation = holiday != null &&
+        (vacation == null || vacation.type.isVacation || vacation.type == AbsenceType.unpaid);
 
     if (isSelected) {
       bgColor = Theme.of(context).colorScheme.primary;
       textColor = Theme.of(context).colorScheme.onPrimary;
+    } else if (vacation != null && vacation.type.isMedical) {
+      // Krankheit/Kind krank hat Priorität (auch über Feiertag visuell erkennbar)
+      bgColor = vacation.type.color.withAlpha(context.isDark ? 80 : 50);
+      textColor = context.isDark ? vacation.type.color.withAlpha(220) : vacation.type.color;
+    } else if (holidayOverridesVacation) {
+      // Feiertag überschreibt Urlaub/Sonderurlaub visuell
+      bgColor = context.holidayBackground;
+      textColor = context.holidayForeground;
     } else if (vacation != null) {
+      // Andere Abwesenheitstypen
       bgColor = vacation.type.color.withAlpha(context.isDark ? 80 : 50);
       textColor = context.isDark ? vacation.type.color.withAlpha(220) : vacation.type.color;
     } else if (holiday != null) {
@@ -254,7 +268,7 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
       textColor = context.subtleText;
     }
 
-    // Status-Indikator
+    // Status-Indikator mit Priorität
     Widget? indicator;
     if (!isSelected) {
       if (workedHours > 0) {
@@ -265,6 +279,27 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
             fontWeight: FontWeight.bold,
             color: context.isDark ? Colors.green.shade300 : Colors.green.shade700,
           ),
+        );
+      } else if (vacation != null && vacation.type.isMedical) {
+        // Medizinische Abwesenheit immer anzeigen
+        indicator = Icon(vacation.type.icon, size: 12, color: vacation.type.color);
+      } else if (holidayOverridesVacation) {
+        // Bei Feiertag: Feiertags-Icon, aber kleiner Punkt wenn auch Urlaub eingetragen
+        indicator = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.celebration, size: 12, color: context.holidayForeground),
+            if (vacation != null) // Urlaub auf Feiertag markieren
+              Container(
+                margin: const EdgeInsets.only(left: 2),
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: vacation.type.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
         );
       } else if (vacation != null) {
         indicator = Icon(vacation.type.icon, size: 12, color: vacation.type.color);
@@ -366,6 +401,31 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
                 ),
             ],
           ),
+          // Hinweis bei Urlaub auf Feiertag
+          if (holiday != null && vacation != null && vacation.type.isVacation)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withAlpha(context.isDark ? 40 : 30),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withAlpha(100)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Feiertag – kein Urlaubstag wird verbraucht',
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           // Arbeitszeit-Info
           if (workEntries.isNotEmpty) ...[
