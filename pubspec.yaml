@@ -25,9 +25,12 @@ dependencies:
   enough_icalendar: ^0.16.0   # iCalendar-Erzeugung :contentReference[oaicite:22]{index=22}
   icalendar_parser: ^2.1.0    # iCalendar-Parsing :contentReference[oaicite:23]{index=23}
 
-  google_maps_flutter: ^2.12.1 # Kartenanzeige :contentReference[oaicite:24]{index=24}
-  latlng: ^2.0.7
+  flutter_map: ^6.1.0          # OpenStreetMap-basierte Kartenanzeige
+  latlong2: ^0.9.0             # Koordinaten-Handling für flutter_map
+  latlng: ^2.0.7               # Für geofence_foreground_service Kompatibilität
   shared_preferences: ^2.5.4
+  flutter_local_notifications: ^17.2.4  # Push-Notifications
+  timezone: ^0.9.4                      # Für Notification-Scheduling
   google_sign_in: ^6.2.2       # Google OAuth für Calendar
   googleapis: ^14.0.0          # Google APIs inkl. Calendar
   extension_google_sign_in_as_googleapis_auth: ^2.0.12  # Auth Bridge

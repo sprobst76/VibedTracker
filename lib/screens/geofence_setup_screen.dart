@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/geofence_zone.dart';
 import '../providers.dart';
+import '../widgets/map_picker_widget.dart';
+import 'geofence_map_view_screen.dart';
 
 class GeofenceSetupScreen extends ConsumerStatefulWidget {
   const GeofenceSetupScreen({super.key});
@@ -57,6 +59,14 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.map),
+            tooltip: 'Kartenansicht',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GeofenceMapViewScreen()),
+            ),
+          ),
         ],
       ),
       body: ListView(
@@ -239,6 +249,34 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // Map Picker Button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.push<Map<String, double>>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MapPickerScreen(
+                          initialLatitude: latitude != 0 ? latitude : null,
+                          initialLongitude: longitude != 0 ? longitude : null,
+                          initialRadius: radius,
+                        ),
+                      ),
+                    );
+                    if (result != null) {
+                      setDialogState(() {
+                        latitude = result['lat']!;
+                        longitude = result['lng']!;
+                        radius = result['radius']!;
+                        latController.text = latitude.toString();
+                        lngController.text = longitude.toString();
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.map),
+                  label: const Text('Auf Karte auswählen'),
+                ),
+                const SizedBox(height: 8),
+
                 // Current Position Button
                 OutlinedButton.icon(
                   onPressed: _currentPosition != null
@@ -256,33 +294,38 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Coordinates
-                const Text('Koordinaten', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
+                // Coordinates (collapsible)
+                ExpansionTile(
+                  title: const Text('Koordinaten manuell eingeben'),
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 8),
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: latController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'Breitengrad',
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: latController,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Breitengrad',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            onChanged: (value) => latitude = double.tryParse(value) ?? latitude,
+                          ),
                         ),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                        onChanged: (value) => latitude = double.tryParse(value) ?? latitude,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: lngController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'Längengrad',
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: lngController,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Längengrad',
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            onChanged: (value) => longitude = double.tryParse(value) ?? longitude,
+                          ),
                         ),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                        onChanged: (value) => longitude = double.tryParse(value) ?? longitude,
-                      ),
+                      ],
                     ),
                   ],
                 ),

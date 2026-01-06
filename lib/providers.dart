@@ -65,6 +65,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..bundesland = bundesland;
     state.save();
   }
+
+  void updateEnableReminders(bool enabled) {
+    state = state..enableReminders = enabled;
+    state.save();
+  }
+
+  void updateReminderHour(int hour) {
+    state = state..reminderHour = hour.clamp(0, 23);
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

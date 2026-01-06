@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 import '../models/settings.dart';
 import '../services/test_data_service.dart';
+import '../services/reminder_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
 import 'calendar_settings_screen.dart';
@@ -375,6 +376,115 @@ class SettingsScreen extends ConsumerWidget {
                     icon: const Icon(Icons.calendar_month),
                     label: const Text('Kalender konfigurieren'),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Reminder Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Erinnerungen',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              settings.enableReminders
+                                  ? 'Tägliche Erinnerung um ${settings.reminderHour}:00 Uhr'
+                                  : 'Erinnerungen deaktiviert',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: settings.enableReminders,
+                        onChanged: (value) async {
+                          notifier.updateEnableReminders(value);
+                          final reminderService = ReminderService();
+                          if (value) {
+                            await reminderService.scheduleDailyReminder(settings.reminderHour);
+                          } else {
+                            await reminderService.cancelAllReminders();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  if (settings.enableReminders) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('Uhrzeit:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 16),
+                        DropdownButton<int>(
+                          value: settings.reminderHour,
+                          items: List.generate(24, (hour) => DropdownMenuItem(
+                            value: hour,
+                            child: Text('$hour:00 Uhr'),
+                          )),
+                          onChanged: (hour) async {
+                            if (hour != null) {
+                              notifier.updateReminderHour(hour);
+                              final reminderService = ReminderService();
+                              await reminderService.scheduleDailyReminder(hour);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.notifications_active, size: 16, color: Colors.amber.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Du wirst benachrichtigt, wenn Tage ohne Zeiterfassung oder Abwesenheit fehlen.',
+                              style: TextStyle(fontSize: 11, color: Colors.amber.shade700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final reminderService = ReminderService();
+                        await reminderService.showTestNotification();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Test-Notification gesendet'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.notification_add),
+                      label: const Text('Test-Notification'),
+                    ),
+                  ],
                 ],
               ),
             ),

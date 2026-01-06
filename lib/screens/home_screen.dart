@@ -6,6 +6,7 @@ import '../providers.dart';
 import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
+import '../services/reminder_service.dart';
 import '../models/work_entry.dart';
 import '../models/pause.dart';
 import 'settings_screen.dart';
@@ -25,9 +26,11 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   final _geoService = MyGeofenceService();
   late final GeofenceSyncService _syncService;
   final _locationService = LocationTrackingService();
+  final _reminderService = ReminderService();
   GeofenceStatus? _geofenceStatus;
   bool _isInitializing = true;
   String? _initError;
+  List<DateTime> _missingDays = [];
 
   @override
   void initState() {
@@ -57,13 +60,44 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     });
 
     try {
+      await _reminderService.init();
       await _syncPendingEvents();
       await _initializeGeofence();
+      await _loadMissingDays();
+      await _setupReminders();
       setState(() => _isInitializing = false);
     } catch (e) {
       setState(() {
         _isInitializing = false;
         _initError = e.toString();
+      });
+    }
+  }
+
+  Future<void> _setupReminders() async {
+    final settings = ref.read(settingsProvider);
+    if (settings.enableReminders) {
+      await _reminderService.scheduleDailyReminder(settings.reminderHour);
+    } else {
+      await _reminderService.cancelAllReminders();
+    }
+  }
+
+  Future<void> _loadMissingDays() async {
+    final settings = ref.read(settingsProvider);
+    final workEntries = ref.read(workListProvider);
+    final vacations = ref.read(vacationProvider);
+
+    final missing = await _reminderService.getMissingDays(
+      workEntries: workEntries,
+      vacations: vacations,
+      bundesland: settings.bundesland,
+      daysToCheck: 14, // Letzte 2 Wochen prüfen
+    );
+
+    if (mounted) {
+      setState(() {
+        _missingDays = missing;
       });
     }
   }
@@ -183,6 +217,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             // Status Card
             _buildStatusCard(running, isPaused, last),
             const SizedBox(height: 16),
+
+            // Missing Days Warning
+            if (_missingDays.isNotEmpty) ...[
+              _buildMissingDaysCard(),
+              const SizedBox(height: 16),
+            ],
 
             // Buttons
             _buildButtonRow(running, isPaused, last, activePause),
@@ -610,6 +650,135 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMissingDaysCard() {
+    return Card(
+      color: Colors.amber.shade50,
+      child: InkWell(
+        onTap: _showMissingDaysDialog,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade600,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${_missingDays.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _missingDays.length == 1
+                          ? '1 Tag ohne Eintrag'
+                          : '${_missingDays.length} Tage ohne Eintrag',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                    Text(
+                      'Tippe hier um Details zu sehen',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.amber.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.amber.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMissingDaysDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.amber.shade700),
+            const SizedBox(width: 8),
+            const Text('Fehlende Einträge'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Für folgende Tage fehlt ein Arbeitszeit-Eintrag oder eine Abwesenheit:',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 16),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _missingDays.length,
+                  itemBuilder: (context, index) {
+                    final day = _missingDays[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.event_busy, color: Colors.orange),
+                      title: Text(_formatDate(day)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          // Zum Vacation-Screen navigieren mit vorausgewähltem Tag
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const VacationScreen()),
+                          );
+                        },
+                        tooltip: 'Eintrag hinzufügen',
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Schließen'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VacationScreen()),
+              );
+            },
+            child: const Text('Abwesenheit eintragen'),
+          ),
+        ],
       ),
     );
   }

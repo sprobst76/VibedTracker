@@ -29,6 +29,10 @@ class Settings extends HiveObject {
   int themeModeIndex; // 0 = system, 1 = light, 2 = dark
   @HiveField(8)
   String bundesland; // Bundesland für Feiertage (DE = alle)
+  @HiveField(9)
+  bool enableReminders; // Erinnerungen aktiviert
+  @HiveField(10)
+  int reminderHour; // Uhrzeit für tägliche Erinnerung (0-23)
 
   Settings({
     this.weeklyHours = 40.0,
@@ -40,6 +44,8 @@ class Settings extends HiveObject {
     this.googleCalendarId,
     this.themeModeIndex = 0, // Default: System
     this.bundesland = 'DE', // Default: Alle Bundesländer
+    this.enableReminders = true, // Default: aktiviert
+    this.reminderHour = 18, // Default: 18:00 Uhr
   });
 
   /// Gibt den aktuellen Theme-Modus zurück
