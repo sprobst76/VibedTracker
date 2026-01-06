@@ -9,6 +9,7 @@ import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
 import 'calendar_settings_screen.dart';
 import 'projects_screen.dart';
+import 'security_settings_screen.dart';
 import '../theme/theme_colors.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -200,6 +201,53 @@ class SettingsScreen extends ConsumerWidget {
                     onSelectionChanged: (Set<AppThemeMode> selection) {
                       notifier.updateThemeMode(selection.first);
                     },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Security Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.security,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sicherheit',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'App-Sperre, PIN, Biometrie',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SecuritySettingsScreen()),
+                    ),
+                    icon: const Icon(Icons.lock),
+                    label: const Text('Sicherheit konfigurieren'),
                   ),
                 ],
               ),

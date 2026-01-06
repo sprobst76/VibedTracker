@@ -35,6 +35,11 @@ dependencies:
   googleapis: ^14.0.0          # Google APIs inkl. Calendar
   extension_google_sign_in_as_googleapis_auth: ^2.0.12  # Auth Bridge
 
+  # Security & Encryption (Phase 4)
+  flutter_secure_storage: ^9.2.2   # Keychain/Keystore für Keys
+  local_auth: ^2.3.0               # Biometrische Authentifizierung
+  cryptography: ^2.7.0             # AES-GCM, Argon2id
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
