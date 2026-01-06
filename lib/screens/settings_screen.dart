@@ -61,6 +61,10 @@ class SettingsScreen extends ConsumerWidget {
           _buildWorkWeekSection(context, ref, settings, notifier),
           const SizedBox(height: 16),
 
+          // Urlaubstage Section
+          _buildVacationSection(context, ref, settings, notifier),
+          const SizedBox(height: 16),
+
           // Projekte Section
           _buildProjectsSection(context, ref),
           const SizedBox(height: 16),
@@ -627,6 +631,84 @@ class SettingsScreen extends ConsumerWidget {
   String _formatNonWorkingDays(List<int> weekdays) {
     const dayNames = {1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So'};
     return weekdays.map((d) => dayNames[d]).join(', ');
+  }
+
+  Widget _buildVacationSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
+    final stats = ref.watch(currentYearVacationStatsProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Urlaubsanspruch',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Dein jährlicher Urlaubsanspruch in Tagen.',
+              style: TextStyle(fontSize: 12, color: context.subtleText),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: settings.annualVacationDays.toString(),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Urlaubstage / Jahr',
+                      suffixText: 'Tage',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (value) {
+                      final days = int.tryParse(value);
+                      if (days != null) {
+                        notifier.updateAnnualVacationDays(days);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Resturlaub übertragen'),
+              subtitle: Text(
+                'Nicht genommener Urlaub wird ins nächste Jahr übertragen.',
+                style: TextStyle(fontSize: 12, color: context.subtleText),
+              ),
+              value: settings.enableVacationCarryover,
+              onChanged: notifier.updateVacationCarryover,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: context.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.beach_access, size: 16, color: context.infoForeground),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${DateTime.now().year}: ${stats.usedDays.toStringAsFixed(0)} von ${stats.totalEntitlement.toStringAsFixed(0)} Tagen genommen, ${stats.remainingDays.toStringAsFixed(0)} verbleibend',
+                      style: TextStyle(fontSize: 11, color: context.infoForeground),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildProjectsSection(BuildContext context, WidgetRef ref) {

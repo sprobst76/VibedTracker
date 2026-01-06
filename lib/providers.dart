@@ -7,6 +7,7 @@ import 'models/weekly_hours_period.dart';
 import 'models/pause.dart';
 import 'models/geofence_zone.dart';
 import 'models/project.dart';
+import 'models/vacation_quota.dart';
 
 // Hive-Box-Provider
 final workBoxProvider = Provider((ref) => Hive.box<WorkEntry>('work'));
@@ -15,6 +16,7 @@ final setBoxProvider = Provider((ref) => Hive.box<Settings>('settings'));
 final weeklyHoursBoxProvider = Provider((ref) => Hive.box<WeeklyHoursPeriod>('weekly_hours_periods'));
 final geofenceZonesBoxProvider = Provider((ref) => Hive.box<GeofenceZone>('geofence_zones'));
 final projectsBoxProvider = Provider((ref) => Hive.box<Project>('projects'));
+final vacationQuotaBoxProvider = Provider((ref) => Hive.box<VacationQuota>('vacation_quotas'));
 
 // Settings-Provider
 final settingsProvider = StateNotifierProvider<SettingsNotifier, Settings>((ref) {
@@ -92,6 +94,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     }
     current.sort();
     state = state..nonWorkingWeekdays = current;
+    state.save();
+  }
+
+  void updateAnnualVacationDays(int days) {
+    state = state..annualVacationDays = days.clamp(0, 365);
+    state.save();
+  }
+
+  void updateVacationCarryover(bool enabled) {
+    state = state..enableVacationCarryover = enabled;
     state.save();
   }
 }
@@ -596,3 +608,111 @@ class ProjectsNotifier extends StateNotifier<List<Project>> {
     }
   }
 }
+
+// Vacation Quota Provider
+final vacationQuotaProvider = StateNotifierProvider<VacationQuotaNotifier, List<VacationQuota>>((ref) {
+  final box = ref.watch(vacationQuotaBoxProvider);
+  return VacationQuotaNotifier(box);
+});
+
+class VacationQuotaNotifier extends StateNotifier<List<VacationQuota>> {
+  final Box<VacationQuota> box;
+
+  VacationQuotaNotifier(this.box) : super(box.values.toList());
+
+  void _refresh() {
+    state = box.values.toList();
+  }
+
+  /// Holt das Kontingent für ein Jahr (erstellt es falls nicht vorhanden)
+  VacationQuota getOrCreateForYear(int year) {
+    try {
+      return state.firstWhere((q) => q.year == year);
+    } catch (e) {
+      // Erstelle neues Kontingent
+      final quota = VacationQuota(year: year);
+      box.add(quota);
+      _refresh();
+      return quota;
+    }
+  }
+
+  /// Holt das Kontingent für ein Jahr (null falls nicht vorhanden)
+  VacationQuota? getForYear(int year) {
+    try {
+      return state.firstWhere((q) => q.year == year);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Setzt den Übertrag für ein Jahr
+  Future<void> setCarryover(int year, double days, {String? note}) async {
+    final quota = getOrCreateForYear(year);
+    quota.carryoverDays = days;
+    if (note != null) quota.note = note;
+    await quota.save();
+    _refresh();
+  }
+
+  /// Setzt die Anpassung für ein Jahr
+  Future<void> setAdjustment(int year, double days, {String? note}) async {
+    final quota = getOrCreateForYear(year);
+    quota.adjustmentDays = days;
+    if (note != null) quota.note = note;
+    await quota.save();
+    _refresh();
+  }
+
+  /// Berechnet und speichert den Übertrag vom Vorjahr
+  Future<void> calculateCarryoverFromPreviousYear(
+    int year,
+    double remainingDaysLastYear, {
+    bool enableCarryover = true,
+  }) async {
+    if (!enableCarryover) return;
+    final quota = getOrCreateForYear(year);
+    quota.carryoverDays = remainingDaysLastYear > 0 ? remainingDaysLastYear : 0;
+    await quota.save();
+    _refresh();
+  }
+}
+
+// Vacation Stats Provider - berechnet Urlaubsstatistiken
+final vacationStatsProvider = Provider.family<VacationStats, int>((ref, year) {
+  final settings = ref.watch(settingsProvider);
+  final vacations = ref.watch(vacationProvider);
+  final quotas = ref.watch(vacationQuotaProvider);
+
+  // Urlaubstage des Jahres zählen (nur Typ "vacation")
+  final usedDays = vacations.where((v) =>
+    v.day.year == year && v.type == AbsenceType.vacation
+  ).length.toDouble();
+
+  final vacationEntries = vacations.where((v) =>
+    v.day.year == year && v.type == AbsenceType.vacation
+  ).length;
+
+  // Quota für das Jahr holen
+  VacationQuota? quota;
+  try {
+    quota = quotas.firstWhere((q) => q.year == year);
+  } catch (e) {
+    quota = null;
+  }
+
+  return VacationStats(
+    year: year,
+    annualEntitlement: settings.annualVacationDays.toDouble(),
+    carryover: quota?.carryoverDays ?? 0.0,
+    adjustments: quota?.adjustmentDays ?? 0.0,
+    usedDays: usedDays,
+    vacationEntries: vacationEntries,
+  );
+});
+
+// Vacation Stats für aktuelles Jahr
+final currentYearVacationStatsProvider = Provider<VacationStats>((ref) {
+  final year = DateTime.now().year;
+  return ref.watch(vacationStatsProvider(year));
+});

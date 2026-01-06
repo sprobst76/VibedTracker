@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../providers.dart';
 import '../models/vacation.dart';
+import '../models/vacation_quota.dart';
 import '../services/holiday_service.dart';
 import '../theme/theme_colors.dart';
 
@@ -88,6 +89,9 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       ),
       body: Column(
         children: [
+          // Urlaubskontingent-Karte
+          _buildVacationStatsCard(),
+
           // Kalender
           TableCalendar(
             locale: 'de_DE',
@@ -148,6 +152,165 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
             )
           : null,
     );
+  }
+
+  Widget _buildVacationStatsCard() {
+    final stats = ref.watch(vacationStatsProvider(_focusedDay.year));
+    final settings = ref.watch(settingsProvider);
+    final isCurrentYear = _focusedDay.year == DateTime.now().year;
+
+    return Card(
+      margin: const EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Urlaub ${_focusedDay.year}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                if (isCurrentYear)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Aktuell',
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: stats.totalEntitlement > 0
+                    ? (stats.usedDays / stats.totalEntitlement).clamp(0.0, 1.0)
+                    : 0.0,
+                minHeight: 10,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  stats.isOverdrawn ? Colors.red : Colors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(
+                  'Anspruch',
+                  '${stats.totalEntitlement.toStringAsFixed(stats.totalEntitlement == stats.totalEntitlement.roundToDouble() ? 0 : 1)}',
+                  Colors.grey,
+                  subtitle: stats.carryover > 0
+                      ? '(${settings.annualVacationDays} + ${stats.carryover.toStringAsFixed(0)} Übertrag)'
+                      : null,
+                ),
+                _buildStatItem(
+                  'Genommen',
+                  '${stats.usedDays.toStringAsFixed(0)}',
+                  Colors.orange,
+                ),
+                _buildStatItem(
+                  'Verbleibend',
+                  '${stats.remainingDays.toStringAsFixed(stats.remainingDays == stats.remainingDays.roundToDouble() ? 0 : 1)}',
+                  stats.isOverdrawn ? Colors.red : Colors.green,
+                ),
+              ],
+            ),
+            // Übertrag bearbeiten Button
+            if (settings.enableVacationCarryover) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: Text(
+                  stats.carryover > 0
+                      ? 'Übertrag: ${stats.carryover.toStringAsFixed(1)} Tage'
+                      : 'Übertrag hinzufügen',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onPressed: () => _showCarryoverDialog(stats),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color, {String? subtitle}) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+        ),
+        if (subtitle != null)
+          Text(subtitle, style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+      ],
+    );
+  }
+
+  Future<void> _showCarryoverDialog(VacationStats stats) async {
+    final quotaNotifier = ref.read(vacationQuotaProvider.notifier);
+    final controller = TextEditingController(
+      text: stats.carryover > 0 ? stats.carryover.toStringAsFixed(1) : '',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Übertrag ${stats.year}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Resturlaub aus ${stats.year - 1}, der ins aktuelle Jahr übertragen wird.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Übertrag (Tage)',
+                border: OutlineInputBorder(),
+                suffixText: 'Tage',
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.replaceAll(',', '.');
+              final value = double.tryParse(text) ?? 0.0;
+              Navigator.pop(context, value);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await quotaNotifier.setCarryover(stats.year, result);
+    }
   }
 
   Widget _buildDayCell(

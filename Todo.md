@@ -51,6 +51,13 @@ Datum: 2026-01-05
 - Hinweis "Feiertag – kein Urlaubstag wird verbraucht"
 - Dateien: `lib/models/vacation.dart`, `lib/screens/calendar_overview_screen.dart`, `lib/screens/vacation_screen.dart`
 
+### ✅ 6. Urlaubstageverwaltung (2026-01-06)
+- Jahresurlaub in Settings konfigurierbar (Standard: 30 Tage)
+- Übertragsoption für Resturlaub ins nächste Jahr
+- Urlaubsstatistik-Karte im Abwesenheits-Screen (Anspruch, Genommen, Verbleibend)
+- Übertrag pro Jahr manuell editierbar
+- Dateien: `lib/models/vacation_quota.dart`, `lib/providers.dart`, `lib/screens/vacation_screen.dart`, `lib/screens/settings_screen.dart`
+
 ---
 
 ## Feature-Ideen (Backlog)
@@ -59,11 +66,6 @@ Datum: 2026-01-05
 - Monats- und Wochenarbeitszeit korrekt berechnen
 - Klare Verrechnung von Urlaub, Feiertagen, Krankheit mit Sollzeit
 - Dokumentieren wie die Berechnung funktioniert
-
-### 6. Urlaubstageverwaltung
-- Jahresurlaub erfassen (meist 30 Tage)
-- Verbrauchte und verbleibende Urlaubstage anzeigen
-- Übertrag ins nächste Jahr (optional)
 
 ### 7. Heiligabend & Silvester
 - Klarstellen wie 24.12. und 31.12. im Arbeitszeitkonto gelten

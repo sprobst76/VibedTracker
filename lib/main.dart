@@ -11,6 +11,7 @@ import 'models/geofence_zone.dart';
 import 'models/location_point.dart';
 import 'models/project.dart';
 import 'models/work_exception.dart';
+import 'models/vacation_quota.dart';
 import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
 import 'theme/app_theme.dart';
@@ -36,6 +37,7 @@ void main() async {
   Hive.registerAdapter(LocationPointAdapter());
   Hive.registerAdapter(ProjectAdapter());
   Hive.registerAdapter(WorkExceptionAdapter());
+  Hive.registerAdapter(VacationQuotaAdapter());
 
   // Verschlüsselungsschlüssel laden/erstellen
   final secureStorage = SecureStorageService();
@@ -60,6 +62,7 @@ Future<void> _openBoxes(HiveAesCipher cipher) async {
   await _openBoxSafe<LocationPoint>('location_points', cipher);
   await _openBoxSafe<Project>('projects', cipher);
   await _openBoxSafe<WorkException>('work_exceptions', cipher);
+  await _openBoxSafe<VacationQuota>('vacation_quotas', cipher);
 }
 
 /// Öffnet eine Box sicher - versucht verschlüsselt, fällt auf unverschlüsselt zurück

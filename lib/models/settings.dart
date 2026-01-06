@@ -35,6 +35,10 @@ class Settings extends HiveObject {
   int reminderHour; // Uhrzeit für tägliche Erinnerung (0-23)
   @HiveField(11)
   List<int> nonWorkingWeekdays; // Arbeitsfreie Wochentage: 1=Mo, 2=Di, ..., 7=So
+  @HiveField(12)
+  int annualVacationDays; // Jahresurlaub in Tagen (Standard: 30)
+  @HiveField(13)
+  bool enableVacationCarryover; // Resturlaub ins nächste Jahr übertragen
 
   Settings({
     this.weeklyHours = 40.0,
@@ -49,6 +53,8 @@ class Settings extends HiveObject {
     this.enableReminders = true, // Default: aktiviert
     this.reminderHour = 18, // Default: 18:00 Uhr
     List<int>? nonWorkingWeekdays,
+    this.annualVacationDays = 30, // Default: 30 Tage
+    this.enableVacationCarryover = true, // Default: Übertrag erlaubt
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück
