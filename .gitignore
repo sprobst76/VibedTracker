@@ -42,3 +42,4 @@ app.*.map.json
 
 # Android module build artifacts
 /android/**/build
+app-release.apk
