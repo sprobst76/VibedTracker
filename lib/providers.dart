@@ -172,6 +172,7 @@ class WorkEntryNotifier extends StateNotifier<List<WorkEntry>> {
     String? projectId,
     List<String>? tags,
     String? notes,
+    List<Pause>? pauses,
   }) async {
     if (newStart != null) entry.start = newStart;
     if (newStop != null) entry.stop = newStop;
@@ -179,6 +180,7 @@ class WorkEntryNotifier extends StateNotifier<List<WorkEntry>> {
     entry.projectId = projectId;  // Erlaubt null zum Entfernen
     if (tags != null) entry.tags = tags;
     entry.notes = notes;  // Erlaubt null zum Entfernen
+    if (pauses != null) entry.pauses = pauses;
     await entry.save();
     _refresh();
   }
@@ -686,6 +688,14 @@ class VacationQuotaNotifier extends StateNotifier<List<VacationQuota>> {
     await quota.save();
     _refresh();
   }
+
+  /// Setzt die manuell genommenen Tage für ein Jahr (für Vorjahre ohne Tracking)
+  Future<void> setManualUsedDays(int year, double days) async {
+    final quota = getOrCreateForYear(year);
+    quota.manualUsedDays = days.clamp(0, 365);
+    await quota.save();
+    _refresh();
+  }
 }
 
 // Vacation Stats Provider - berechnet Urlaubsstatistiken
@@ -694,8 +704,8 @@ final vacationStatsProvider = Provider.family<VacationStats, int>((ref, year) {
   final vacations = ref.watch(vacationProvider);
   final quotas = ref.watch(vacationQuotaProvider);
 
-  // Urlaubstage des Jahres zählen (nur Typ "vacation")
-  final usedDays = vacations.where((v) =>
+  // Urlaubstage des Jahres zählen (nur Typ "vacation") - erfasste Tage
+  final trackedDays = vacations.where((v) =>
     v.day.year == year && v.type == AbsenceType.vacation
   ).length.toDouble();
 
@@ -716,7 +726,8 @@ final vacationStatsProvider = Provider.family<VacationStats, int>((ref, year) {
     annualEntitlement: settings.annualVacationDays.toDouble(),
     carryover: quota?.carryoverDays ?? 0.0,
     adjustments: quota?.adjustmentDays ?? 0.0,
-    usedDays: usedDays,
+    trackedDays: trackedDays,
+    manualDays: quota?.manualUsedDays ?? 0.0,
     vacationEntries: vacationEntries,
   );
 });

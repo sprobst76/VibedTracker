@@ -17,11 +17,15 @@ class VacationQuota extends HiveObject {
   @HiveField(3)
   String? note; // Notiz zur Anpassung
 
+  @HiveField(4)
+  double manualUsedDays; // Manuell eingetragene genommene Tage (für Vorjahre)
+
   VacationQuota({
     required this.year,
     this.carryoverDays = 0.0,
     this.adjustmentDays = 0.0,
     this.note,
+    this.manualUsedDays = 0.0,
   });
 }
 
@@ -32,7 +36,9 @@ class VacationStats {
   final double carryover;          // Übertrag aus Vorjahr
   final double adjustments;        // Anpassungen
   final double totalEntitlement;   // Gesamtanspruch
-  final double usedDays;           // Verbrauchte Tage
+  final double trackedDays;        // Erfasste Tage (aus Kalender)
+  final double manualDays;         // Manuell eingetragene Tage
+  final double usedDays;           // Verbrauchte Tage gesamt (tracked + manual)
   final double remainingDays;      // Verbleibende Tage
   final int vacationEntries;       // Anzahl Urlaubseinträge
 
@@ -41,10 +47,12 @@ class VacationStats {
     required this.annualEntitlement,
     required this.carryover,
     required this.adjustments,
-    required this.usedDays,
+    required this.trackedDays,
+    required this.manualDays,
     required this.vacationEntries,
   }) : totalEntitlement = annualEntitlement + carryover + adjustments,
-       remainingDays = annualEntitlement + carryover + adjustments - usedDays;
+       usedDays = trackedDays + manualDays,
+       remainingDays = annualEntitlement + carryover + adjustments - trackedDays - manualDays;
 
   /// Prozent des Urlaubs verbraucht
   double get usedPercentage =>

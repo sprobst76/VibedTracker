@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../models/work_entry.dart';
 import '../models/project.dart';
+import '../models/pause.dart';
 import '../providers.dart';
 import '../theme/theme_colors.dart';
 
@@ -27,6 +28,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
   WorkMode _workMode = WorkMode.normal;
   String? _projectId;
   List<String> _tags = [];
+  List<Pause> _pauses = [];
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _tagController = TextEditingController();
 
@@ -47,6 +49,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
       _workMode = widget.entry!.workMode;
       _projectId = widget.entry!.projectId;
       _tags = List.from(widget.entry!.tags);
+      _pauses = widget.entry!.pauses.map((p) => Pause(start: p.start, end: p.end)).toList();
       _notesController.text = widget.entry!.notes ?? '';
     } else {
       // Neuer Eintrag: initialDate oder heute, jetzt
@@ -163,6 +166,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
         projectId: _projectId,
         tags: _tags,
         notes: notes,
+        pauses: _pauses,
       );
     }
 
@@ -225,6 +229,12 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
           _buildTimeSection(false),
           const SizedBox(height: 16),
 
+          // Pauses Section (nur bei bestehenden Einträgen)
+          if (!isNewEntry) ...[
+            _buildPausesSection(),
+            const SizedBox(height: 16),
+          ],
+
           // Work Mode Section
           _buildWorkModeSection(),
           const SizedBox(height: 16),
@@ -260,6 +270,176 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPausesSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Pausen',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle),
+                  onPressed: _addPause,
+                  tooltip: 'Pause hinzufügen',
+                ),
+              ],
+            ),
+            if (_pauses.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Keine Pausen eingetragen',
+                  style: TextStyle(color: context.subtleText, fontSize: 12),
+                ),
+              )
+            else
+              ..._pauses.asMap().entries.map((entry) {
+                final index = entry.key;
+                final pause = entry.value;
+                return _buildPauseItem(index, pause);
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPauseItem(int index, Pause pause) {
+    final startTime = TimeOfDay.fromDateTime(pause.start);
+    final endTime = pause.end != null ? TimeOfDay.fromDateTime(pause.end!) : null;
+    final duration = pause.end != null
+        ? pause.end!.difference(pause.start)
+        : DateTime.now().difference(pause.start);
+    final durationStr = '${duration.inHours}h ${duration.inMinutes % 60}m';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.neutralBackground,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.coffee, size: 20, color: context.subtleText),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => _editPauseTime(index, true),
+                        child: Text(
+                          _formatTime(startTime),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const Text(' - '),
+                      GestureDetector(
+                        onTap: () => _editPauseTime(index, false),
+                        child: Text(
+                          endTime != null ? _formatTime(endTime) : 'läuft',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: endTime == null ? Colors.orange : null,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Dauer: $durationStr',
+                    style: TextStyle(fontSize: 12, color: context.subtleText),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              onPressed: () => _removePause(index),
+              tooltip: 'Pause entfernen',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addPause() {
+    final now = DateTime.now();
+    final entryStart = _combineDateTime(_startDate, _startTime);
+    final entryStop = _hasStop && _stopDate != null && _stopTime != null
+        ? _combineDateTime(_stopDate!, _stopTime!)
+        : now;
+
+    // Default: 12:00-12:30 oder Mitte des Eintrags
+    final midpoint = entryStart.add(Duration(
+      minutes: entryStop.difference(entryStart).inMinutes ~/ 2,
+    ));
+    final pauseStart = DateTime(
+      midpoint.year, midpoint.month, midpoint.day,
+      12, 0,
+    ).isBefore(entryStart) ? entryStart.add(const Duration(hours: 1)) : midpoint;
+    final pauseEnd = pauseStart.add(const Duration(minutes: 30));
+
+    setState(() {
+      _pauses.add(Pause(start: pauseStart, end: pauseEnd));
+      _pauses.sort((a, b) => a.start.compareTo(b.start));
+    });
+  }
+
+  void _removePause(int index) {
+    setState(() {
+      _pauses.removeAt(index);
+    });
+  }
+
+  Future<void> _editPauseTime(int index, bool isStart) async {
+    final pause = _pauses[index];
+    final currentTime = isStart
+        ? TimeOfDay.fromDateTime(pause.start)
+        : (pause.end != null ? TimeOfDay.fromDateTime(pause.end!) : TimeOfDay.now());
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: currentTime,
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _pauses[index] = Pause(
+            start: DateTime(
+              pause.start.year, pause.start.month, pause.start.day,
+              picked.hour, picked.minute,
+            ),
+            end: pause.end,
+          );
+        } else {
+          _pauses[index] = Pause(
+            start: pause.start,
+            end: DateTime(
+              pause.start.year, pause.start.month, pause.start.day,
+              picked.hour, picked.minute,
+            ),
+          );
+        }
+        _pauses.sort((a, b) => a.start.compareTo(b.start));
+      });
+    }
   }
 
   Widget _buildTimeSection(bool isStart) {

@@ -352,6 +352,9 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ),
             if (running && entry != null) ...[
               const SizedBox(height: 8),
+              // Aktueller Arbeitsmodus mit Wechsel-Option
+              _buildWorkModeChips(entry),
+              const SizedBox(height: 8),
               Text(
                 'Gestartet: ${_formatTime(entry.start)}',
                 style: TextStyle(color: Colors.grey.shade600),
@@ -381,6 +384,83 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Widget _buildWorkModeChips(WorkEntry entry) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      alignment: WrapAlignment.center,
+      children: WorkMode.values.map((mode) {
+        final isSelected = entry.workMode == mode;
+        final modeColor = mode.getColor(context);
+        return FilterChip(
+          avatar: Icon(
+            mode.icon,
+            size: 16,
+            color: isSelected ? Colors.white : modeColor,
+          ),
+          label: Text(
+            mode.label,
+            style: TextStyle(
+              fontSize: 11,
+              color: isSelected ? Colors.white : null,
+            ),
+          ),
+          selected: isSelected,
+          selectedColor: modeColor,
+          checkmarkColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+          onSelected: isSelected ? null : (_) => _switchWorkMode(entry, mode),
+        );
+      }).toList(),
+    );
+  }
+
+  Future<void> _switchWorkMode(WorkEntry currentEntry, WorkMode newMode) async {
+    final now = DateTime.now();
+    final box = Hive.box<WorkEntry>('work');
+    final settings = ref.read(settingsProvider);
+
+    // Aktive Pause beenden falls vorhanden
+    final activePause = currentEntry.pauses.cast<Pause?>().firstWhere(
+      (p) => p?.end == null,
+      orElse: () => null,
+    );
+    if (activePause != null) {
+      activePause.end = now;
+    }
+
+    // Aktuellen Eintrag stoppen
+    currentEntry.stop = now;
+    await currentEntry.save();
+
+    // Neuen Eintrag mit neuem Modus starten
+    final newEntry = WorkEntry(
+      start: now,
+      workModeIndex: newMode.index,
+      projectId: currentEntry.projectId, // Projekt beibehalten
+    );
+    await box.add(newEntry);
+
+    // GPS-Tracking auf neuen Eintrag übertragen
+    if (settings.enableLocationTracking && _locationService.isTracking) {
+      await _locationService.stopTracking();
+      await _locationService.startTracking(newEntry.key.toString());
+    }
+
+    ref.invalidate(workListProvider);
+    await _updateStatus();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Modus gewechselt zu: ${newMode.label}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _buildButtonRow(bool running, bool isPaused, WorkEntry? last, Pause? activePause) {

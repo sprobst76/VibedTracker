@@ -34,14 +34,15 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
     try {
       final year = DateTime.now().year;
+      // Vorjahr, aktuelles Jahr und nächstes Jahr laden
+      final prevYearHolidays = await _holidayService.fetchHolidaysForBundesland(year - 1, bundesland);
       final holidays = await _holidayService.fetchHolidaysForBundesland(year, bundesland);
-      // Auch nächstes Jahr laden für Jahreswechsel
       final nextYearHolidays = await _holidayService.fetchHolidaysForBundesland(year + 1, bundesland);
 
       if (mounted) {
         setState(() {
           _holidays = {
-            for (final h in [...holidays, ...nextYearHolidays])
+            for (final h in [...prevYearHolidays, ...holidays, ...nextYearHolidays])
               DateTime(h.date.year, h.date.month, h.date.day): h
           };
           _loadedBundesland = bundesland;
@@ -213,11 +214,18 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
                       ? '(${settings.annualVacationDays} + ${stats.carryover.toStringAsFixed(0)} Übertrag)'
                       : null,
                 ),
-                _buildStatItem(
+                GestureDetector(
+                onTap: () => _showManualUsedDaysDialog(stats),
+                child: _buildStatItem(
                   'Genommen',
                   '${stats.usedDays.toStringAsFixed(0)}',
                   Colors.orange,
+                  subtitle: stats.manualDays > 0
+                      ? '(${stats.trackedDays.toStringAsFixed(0)} + ${stats.manualDays.toStringAsFixed(0)} manuell)'
+                      : stats.trackedDays > 0 ? '(${stats.trackedDays.toStringAsFixed(0)} erfasst)' : null,
+                  showEditIcon: true,
                 ),
+              ),
                 _buildStatItem(
                   'Verbleibend',
                   '${stats.remainingDays.toStringAsFixed(stats.remainingDays == stats.remainingDays.roundToDouble() ? 0 : 1)}',
@@ -245,10 +253,19 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, Color color, {String? subtitle}) {
+  Widget _buildStatItem(String label, String value, Color color, {String? subtitle, bool showEditIcon = false}) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            if (showEditIcon) ...[
+              const SizedBox(width: 2),
+              Icon(Icons.edit, size: 10, color: Colors.grey.shade400),
+            ],
+          ],
+        ),
         const SizedBox(height: 2),
         Text(
           value,
@@ -310,6 +327,70 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
     if (result != null) {
       await quotaNotifier.setCarryover(stats.year, result);
+    }
+  }
+
+  Future<void> _showManualUsedDaysDialog(VacationStats stats) async {
+    final quotaNotifier = ref.read(vacationQuotaProvider.notifier);
+    final controller = TextEditingController(
+      text: stats.manualDays > 0 ? stats.manualDays.toStringAsFixed(0) : '',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Urlaub ${stats.year}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Erfasste Urlaubstage: ${stats.trackedDays.toStringAsFixed(0)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Zusätzlich manuell eingetragene Tage (z.B. für Vorjahre ohne Kalender-Tracking):',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Manuell genommene Tage',
+                border: OutlineInputBorder(),
+                suffixText: 'Tage',
+                hintText: '0',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Gesamt genommen: ${stats.trackedDays.toStringAsFixed(0)} + ? = ?',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.replaceAll(',', '.');
+              final value = double.tryParse(text) ?? 0.0;
+              Navigator.pop(context, value);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await quotaNotifier.setManualUsedDays(stats.year, result);
     }
   }
 
