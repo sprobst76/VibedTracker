@@ -1,0 +1,35 @@
+version: '3.8'
+
+# Production override für Traefik
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  api:
+    # Port nicht exposen - Traefik macht das
+    ports: []
+    networks:
+      - traefik-public
+      - default
+    labels:
+      - "traefik.enable=true"
+      # HTTP Router
+      - "traefik.http.routers.vibedtracker.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.vibedtracker.entrypoints=websecure"
+      - "traefik.http.routers.vibedtracker.tls=true"
+      - "traefik.http.routers.vibedtracker.tls.certresolver=letsencrypt"
+      # Service
+      - "traefik.http.services.vibedtracker.loadbalancer.server.port=8080"
+      # Optional: HTTP -> HTTPS redirect
+      - "traefik.http.routers.vibedtracker-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.vibedtracker-http.entrypoints=web"
+      - "traefik.http.routers.vibedtracker-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  db:
+    # DB nicht im Traefik-Netzwerk
+    networks:
+      - default
+
+networks:
+  traefik-public:
+    external: true

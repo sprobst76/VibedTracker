@@ -9,25 +9,86 @@ Go-basierte REST-API für VibedTracker Cloud-Sync mit Zero-Knowledge Verschlüss
 - **JWT Authentication**: Access + Refresh Token
 - **Multi-Device**: Sync zwischen mehreren Geräten
 - **Admin Dashboard**: Web-UI zur User-Verwaltung
+- **Traefik-Ready**: Automatisches HTTPS mit Let's Encrypt
 
 ## Quick Start
 
-### 1. Konfiguration erstellen
+### 1. Repository klonen
+
+```bash
+cd /src
+git clone https://github.com/sprobst76/VibedTracker.git
+cd VibedTracker/server
+```
+
+### 2. Konfiguration erstellen
 
 ```bash
 cp .env.example .env
-# .env bearbeiten und sichere Werte setzen
+nano .env
 ```
 
-### 2. Mit Docker starten
+**Wichtige Werte setzen:**
+```bash
+# Sichere Passwörter generieren:
+openssl rand -base64 24  # für DB_PASSWORD
+openssl rand -base64 32  # für JWT_SECRET
+```
+
+### 3. Deploy
 
 ```bash
-docker-compose up -d
+# Script ausführbar machen
+chmod +x deploy.sh
+
+# Production mit Traefik
+./deploy.sh prod
+
+# ODER Development (Port 8080)
+./deploy.sh dev
 ```
 
-### 3. Admin-Dashboard öffnen
+### 4. Admin-Dashboard
 
-Öffne http://localhost:8080/admin/ und melde dich mit den in `.env` konfigurierten Admin-Credentials an.
+Öffne `https://your-domain.com/admin/` und melde dich mit den konfigurierten Admin-Credentials an.
+
+---
+
+## Deployment
+
+### Option A: Mit Traefik (Empfohlen)
+
+Voraussetzungen:
+- Traefik läuft mit `traefik-public` Netzwerk
+- Let's Encrypt Resolver namens `letsencrypt`
+- Entrypoints: `web` (80), `websecure` (443)
+
+```bash
+# .env konfigurieren (inkl. DOMAIN)
+nano .env
+
+# Deploy
+./deploy.sh prod
+```
+
+### Option B: Standalone (Development)
+
+```bash
+./deploy.sh dev
+# API erreichbar unter http://localhost:8080
+```
+
+### Manuelles Deployment
+
+```bash
+# Production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Development
+docker-compose up -d --build
+```
+
+---
 
 ## Architektur
 
@@ -61,9 +122,11 @@ server/
 │   └── repository/           # DB-Zugriff
 ├── migrations/               # SQL Migrationen
 ├── admin/                    # Admin Dashboard (HTML/JS)
-├── docker-compose.yml
+├── deploy.sh                 # Deploy Script
+├── docker-compose.yml        # Base Config
+├── docker-compose.prod.yml   # Traefik Override
 ├── Dockerfile
-└── go.mod
+└── .env.example
 ```
 
 ## API Endpoints
@@ -117,41 +180,41 @@ Umgebungsvariablen in `.env`:
 
 | Variable | Beschreibung | Pflicht |
 |----------|--------------|---------|
-| `DATABASE_URL` | PostgreSQL Connection String | Ja |
 | `DB_PASSWORD` | PostgreSQL Passwort | Ja |
 | `JWT_SECRET` | Secret für Token-Signierung (min. 32 Zeichen) | Ja |
 | `ADMIN_EMAIL` | Email des ersten Admin-Accounts | Ja |
 | `ADMIN_PASSWORD` | Passwort des Admin-Accounts | Ja |
+| `DOMAIN` | Domain für Traefik (ohne https://) | Prod |
 | `ALLOW_REGISTRATION` | Registrierung erlauben (default: true) | Nein |
 | `PORT` | API Port (default: 8080) | Nein |
 
-## Deployment auf VPS
+## Wartung
 
-### Mit Docker Compose
+### Logs anzeigen
+```bash
+docker-compose logs -f api
+docker-compose logs -f db
+```
 
-1. Repository klonen:
-   ```bash
-   git clone https://github.com/sprobst76/VibedTracker.git
-   cd VibedTracker/server
-   ```
+### Neustart
+```bash
+docker-compose restart api
+```
 
-2. `.env` konfigurieren:
-   ```bash
-   cp .env.example .env
-   nano .env
-   ```
+### Update deployen
+```bash
+./deploy.sh prod
+```
 
-3. Starten:
-   ```bash
-   docker-compose up -d
-   ```
+### Datenbank Backup
+```bash
+docker-compose exec db pg_dump -U vibedtracker vibedtracker > backup.sql
+```
 
-### Mit HTTPS (Caddy)
-
-1. `Caddyfile` bearbeiten und Domain setzen
-2. In `docker-compose.yml` Caddy-Service einkommentieren
-3. Ports 80 + 443 freigeben
-4. `docker-compose up -d`
+### Datenbank Restore
+```bash
+cat backup.sql | docker-compose exec -T db psql -U vibedtracker vibedtracker
+```
 
 ## Sicherheit
 
@@ -162,16 +225,18 @@ Umgebungsvariablen in `.env`:
 - [x] Refresh Token Rotation
 - [x] CORS konfiguriert
 - [x] SQL Injection Prevention (prepared statements)
+- [x] HTTPS via Traefik/Let's Encrypt
 
 ## Tech Stack
 
-- **Go 1.21+**
+- **Go 1.21+** - API Server
 - **Gin** - HTTP Framework
 - **pgx** - PostgreSQL Driver
 - **golang-jwt** - JWT Library
 - **bcrypt** - Password Hashing
-- **PostgreSQL 15**
+- **PostgreSQL 15** - Datenbank
 - **Docker** + Docker Compose
+- **Traefik** - Reverse Proxy (optional)
 
 ## Lizenz
 

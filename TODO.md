@@ -2,54 +2,109 @@
 
 ## Aktuell: Phase 4 - Cloud-Synchronisation
 
-### 4.1 Server-Backend (Go API)
+### 4.1 Server-Backend ✅ DONE
 
-**Ziel**: Leichtgewichtige REST-API auf VPS mit E2E-Verschlüsselung
+**Go REST API auf VPS mit E2E-Verschlüsselung**
 
-#### Architektur
 ```
-VPS (Ubuntu/Debian)
-├── vibedtracker-api (Go Binary)
-│   ├── /auth          - Email-Registrierung, Login, JWT
-│   ├── /sync          - Push/Pull verschlüsselter Daten
-│   ├── /devices       - Geräteverwaltung
-│   └── /admin         - User-Verwaltung (geschützt)
-├── PostgreSQL
-│   ├── users          - id, email, password_hash, is_approved, created_at
-│   ├── devices        - id, user_id, device_name, last_sync
-│   └── encrypted_data - id, user_id, device_id, data_type, blob, updated_at
-└── Admin Dashboard (HTML/JS oder Vue)
-    ├── User-Liste
-    ├── Freischaltung
-    └── Statistiken
+/src/VibedTracker/server/
+├── cmd/api/main.go           # Einstiegspunkt
+├── internal/
+│   ├── config/               # Umgebungsvariablen
+│   ├── database/             # PostgreSQL Connection
+│   ├── handlers/             # HTTP Handler
+│   ├── middleware/           # JWT Auth
+│   ├── models/               # Datenmodelle
+│   └── repository/           # DB-Zugriff
+├── admin/index.html          # Admin Dashboard
+├── migrations/               # SQL Schema
+├── deploy.sh                 # Deploy Script
+├── docker-compose.yml        # Development
+├── docker-compose.prod.yml   # Traefik/HTTPS
+└── Dockerfile
 ```
 
-#### Tasks
-- [ ] Go-Projekt initialisieren (`server/`)
-- [ ] PostgreSQL Schema erstellen
-- [ ] Auth-Endpoints implementieren
-  - [ ] POST /auth/register (Email, Password)
-  - [ ] POST /auth/login (JWT Token)
-  - [ ] POST /auth/verify-email
-  - [ ] POST /auth/forgot-password
-- [ ] Sync-Endpoints implementieren
-  - [ ] GET /sync/pull?since=timestamp
-  - [ ] POST /sync/push
-  - [ ] POST /sync/resolve-conflict
-- [ ] Device-Management
-  - [ ] GET /devices
-  - [ ] POST /devices/register
-  - [ ] DELETE /devices/:id
-- [ ] Admin-Endpoints
-  - [ ] GET /admin/users
-  - [ ] POST /admin/users/:id/approve
-  - [ ] POST /admin/users/:id/block
-  - [ ] DELETE /admin/users/:id
-- [ ] Admin-Dashboard (einfaches HTML/JS)
-- [ ] Docker-Compose für Deployment
-- [ ] HTTPS mit Let's Encrypt
+#### Implementiert ✅
+- [x] Go-Projekt mit Gin Framework
+- [x] PostgreSQL Schema (users, devices, encrypted_data, etc.)
+- [x] Auth-Endpoints
+  - [x] POST /auth/register
+  - [x] POST /auth/login (JWT + Refresh Token)
+  - [x] POST /auth/refresh
+- [x] Sync-Endpoints
+  - [x] GET /sync/pull?device_id=...&since=0
+  - [x] POST /sync/push
+  - [x] GET /sync/status
+- [x] Device-Management
+  - [x] GET /devices
+  - [x] POST /devices
+  - [x] DELETE /devices/:id
+- [x] Admin-Endpoints
+  - [x] GET /admin/users
+  - [x] GET /admin/users/:id
+  - [x] POST /admin/users/:id/approve
+  - [x] POST /admin/users/:id/block
+  - [x] DELETE /admin/users/:id
+  - [x] GET /admin/stats
+- [x] Admin-Dashboard (HTML/JS)
+- [x] Docker Compose + Dockerfile
+- [x] Traefik-Integration für HTTPS
+- [x] Deploy Script
 
-### 4.2 App-Integration
+---
+
+### 4.2 Server Deployment
+
+#### Option A: Manuell (Aktuell)
+
+```bash
+# Auf VPS
+cd /src
+git clone https://github.com/sprobst76/VibedTracker.git
+cd VibedTracker/server
+
+# Konfiguration
+cp .env.example .env
+nano .env  # Werte setzen
+
+# Deploy
+chmod +x deploy.sh
+./deploy.sh prod
+```
+
+#### Option B: GitHub Actions Auto-Deploy (Geplant)
+
+```yaml
+# .github/workflows/deploy-server.yml
+name: Deploy Server
+on:
+  push:
+    branches: [main]
+    paths: ['server/**']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /src/VibedTracker/server
+            ./deploy.sh prod
+```
+
+**Benötigte Secrets:**
+- `VPS_HOST` - VPS IP oder Domain
+- `VPS_USER` - SSH User
+- `VPS_SSH_KEY` - Private SSH Key
+
+---
+
+### 4.3 App-Integration (TODO)
 
 #### E2E-Verschlüsselung
 - [ ] CryptoService implementieren
@@ -59,21 +114,22 @@ VPS (Ubuntu/Debian)
 - [ ] Passphrase-Screen bei Setup
 - [ ] Key-Verification ohne Übertragung
 
-#### Sync-Service
-- [ ] CloudSyncService implementieren
-  - [ ] Push lokaler Änderungen
-  - [ ] Pull remote Änderungen
-  - [ ] Konfliktauflösung
+#### CloudSyncService
+- [ ] API-Client für Server
+- [ ] Push lokaler Änderungen
+- [ ] Pull remote Änderungen
+- [ ] Konfliktauflösung (Last-Write-Wins)
 - [ ] Offline-Queue für ausstehende Syncs
 - [ ] Sync-Status-Indicator in UI
 
 #### Auth-Integration
 - [ ] Login/Register Screens
-- [ ] JWT Token Management
+- [ ] JWT Token Management (Secure Storage)
 - [ ] Auto-Refresh Token
+- [ ] "Account nicht freigeschalten" Handling
 - [ ] Logout & Account löschen
 
-### 4.3 Cross-Device Features
+### 4.4 Cross-Device Features (TODO)
 
 - [ ] Aktive Session auf allen Geräten sichtbar
 - [ ] Start auf Gerät A, Stop auf Gerät B
@@ -82,6 +138,14 @@ VPS (Ubuntu/Debian)
 ---
 
 ## Erledigte Features
+
+### Phase 4.1 - Server (2026-01-07)
+- [x] Go REST API mit Gin
+- [x] JWT Authentication
+- [x] Admin-Freischaltung für User
+- [x] Admin-Dashboard
+- [x] Docker + Traefik Deployment
+- [x] Deploy Script
 
 ### Phase 3 - Lokale Sicherheit (2026-01-07)
 - [x] Backup/Restore als ZIP-Datei
@@ -128,6 +192,7 @@ VPS (Ubuntu/Debian)
 - [ ] Widget für Android Homescreen
 - [ ] Wear OS Companion App
 - [ ] Automatische Backups zu Google Drive
+- [ ] GitHub Actions für Server-Deploy
 
 ---
 

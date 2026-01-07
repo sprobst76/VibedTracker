@@ -8,9 +8,30 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Geplant
-- Cloud-Sync mit E2E-Verschlüsselung
-- Go-basierte API für VPS
-- Admin-Dashboard für Nutzerverwaltung
+- Flutter CloudSyncService für App-Integration
+- CryptoService für E2E-Verschlüsselung
+- GitHub Actions für automatisches Server-Deployment
+
+---
+
+## [Server 1.0.0] - 2026-01-07
+
+### Hinzugefügt
+- **Go REST API** für Cloud-Sync
+  - Auth: Register, Login, JWT + Refresh Token
+  - Sync: Push/Pull verschlüsselter Daten (Zero-Knowledge)
+  - Devices: Geräteverwaltung
+  - Admin: User-Freischaltung, Sperren, Löschen
+- **Admin Dashboard** (HTML/JS)
+  - User-Liste mit Status (ausstehend, freigeschalten, gesperrt)
+  - Statistiken (User, Geräte, Sync-Items)
+  - Ein-Klick Freischaltung/Sperrung
+- **Docker Deployment**
+  - `docker-compose.yml` für Development
+  - `docker-compose.prod.yml` für Traefik/HTTPS
+  - `deploy.sh` Script für einfaches Deployment
+- **PostgreSQL** Datenbank mit Migrationen
+- **Traefik-Integration** für automatisches HTTPS
 
 ---
 

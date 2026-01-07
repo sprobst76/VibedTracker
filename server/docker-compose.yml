@@ -1,8 +1,12 @@
 version: '3.8'
 
+# Development configuration (ohne Traefik)
+# Für Production mit Traefik: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
 services:
   api:
     build: .
+    container_name: vibedtracker-api
     ports:
       - "8080:8080"
     environment:
@@ -18,6 +22,7 @@ services:
 
   db:
     image: postgres:15-alpine
+    container_name: vibedtracker-db
     environment:
       - POSTGRES_USER=vibedtracker
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -32,22 +37,5 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Optional: Caddy as reverse proxy with automatic HTTPS
-  # Uncomment and configure Caddyfile with your domain
-  # caddy:
-  #   image: caddy:2-alpine
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   depends_on:
-  #     - api
-  #   restart: unless-stopped
-
 volumes:
   postgres_data:
-  # caddy_data:
-  # caddy_config:
