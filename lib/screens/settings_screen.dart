@@ -11,8 +11,11 @@ import 'geofence_setup_screen.dart';
 import 'calendar_settings_screen.dart';
 import 'projects_screen.dart';
 import 'security_settings_screen.dart';
+import 'sync_settings_screen.dart';
 import 'vacation_quota_screen.dart';
 import '../theme/theme_colors.dart';
+import '../services/auth_service.dart';
+import '../services/cloud_sync_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -219,6 +222,10 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Cloud Sync Section
+          _buildCloudSyncSection(context, ref),
           const SizedBox(height: 16),
 
           // ICS Path Section
@@ -1070,6 +1077,100 @@ class SettingsScreen extends ConsumerWidget {
             child: const Text('Verstanden'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCloudSyncSection(BuildContext context, WidgetRef ref) {
+    final authStatus = ref.watch(authStatusProvider);
+    final syncStatus = ref.watch(syncStatusProvider);
+
+    String statusText;
+    Color statusColor;
+    IconData statusIcon;
+
+    switch (authStatus) {
+      case AuthStatus.authenticated:
+        statusText = 'Verbunden';
+        statusColor = Colors.green;
+        statusIcon = Icons.cloud_done;
+        break;
+      case AuthStatus.pendingApproval:
+        statusText = 'Wartet auf Freischaltung';
+        statusColor = Colors.orange;
+        statusIcon = Icons.hourglass_empty;
+        break;
+      case AuthStatus.blocked:
+        statusText = 'Gesperrt';
+        statusColor = Colors.red;
+        statusIcon = Icons.block;
+        break;
+      case AuthStatus.unauthenticated:
+      case AuthStatus.unknown:
+        statusText = 'Nicht verbunden';
+        statusColor = Colors.grey;
+        statusIcon = Icons.cloud_off;
+        break;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.cloud_sync,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Cloud Sync',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(statusIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            statusText,
+                            style: TextStyle(fontSize: 12, color: statusColor),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (syncStatus == SyncStatus.syncing)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  const Icon(Icons.chevron_right),
+              ],
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SyncSettingsScreen()),
+              ),
+              icon: const Icon(Icons.settings),
+              label: Text(authStatus == AuthStatus.unauthenticated || authStatus == AuthStatus.unknown
+                  ? 'Cloud Sync einrichten'
+                  : 'Sync-Einstellungen'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,9 @@ import 'models/pause.dart';
 import 'models/geofence_zone.dart';
 import 'models/project.dart';
 import 'models/vacation_quota.dart';
+import 'services/auth_service.dart';
+import 'services/encryption_service.dart';
+import 'services/cloud_sync_service.dart';
 
 // Hive-Box-Provider
 final workBoxProvider = Provider((ref) => Hive.box<WorkEntry>('work'));
@@ -757,3 +760,84 @@ final currentYearVacationStatsProvider = Provider<VacationStats>((ref) {
   final year = DateTime.now().year;
   return ref.watch(vacationStatsProvider(year));
 });
+
+// ==================== Cloud Sync Providers ====================
+
+// Auth Service - Singleton
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService();
+});
+
+// Encryption Service - Singleton
+final encryptionServiceProvider = Provider<EncryptionService>((ref) {
+  return EncryptionService();
+});
+
+// Cloud Sync Service
+final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
+  final auth = ref.watch(authServiceProvider);
+  final encryption = ref.watch(encryptionServiceProvider);
+  return CloudSyncService(auth: auth, encryption: encryption);
+});
+
+// Auth Status Provider
+final authStatusProvider = StateNotifierProvider<AuthStatusNotifier, AuthStatus>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return AuthStatusNotifier(authService);
+});
+
+class AuthStatusNotifier extends StateNotifier<AuthStatus> {
+  final AuthService _auth;
+
+  AuthStatusNotifier(this._auth) : super(AuthStatus.unknown) {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    state = await _auth.initialize();
+  }
+
+  Future<void> login(String email, String password, {String? deviceName}) async {
+    await _auth.login(email, password, deviceName: deviceName);
+    state = _auth.status;
+  }
+
+  Future<void> logout() async {
+    await _auth.logout();
+    state = AuthStatus.unauthenticated;
+  }
+
+  Future<void> refresh() async {
+    await _auth.refreshUser();
+    state = _auth.status;
+  }
+
+  User? get currentUser => _auth.currentUser;
+}
+
+// Sync Status Provider
+final syncStatusProvider = StateNotifierProvider<SyncStatusNotifier, SyncStatus>((ref) {
+  final syncService = ref.watch(cloudSyncServiceProvider);
+  return SyncStatusNotifier(syncService);
+});
+
+class SyncStatusNotifier extends StateNotifier<SyncStatus> {
+  final CloudSyncService _sync;
+
+  SyncStatusNotifier(this._sync) : super(SyncStatus.idle) {
+    _loadQueue();
+  }
+
+  Future<void> _loadQueue() async {
+    await _sync.loadQueue();
+  }
+
+  Future<SyncResult> sync() async {
+    state = SyncStatus.syncing;
+    final result = await _sync.sync();
+    state = result.status;
+    return result;
+  }
+
+  int get pendingCount => _sync.pendingCount;
+}
