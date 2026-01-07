@@ -1,0 +1,24 @@
+# Caddyfile for VibedTracker API
+# Replace vibedtracker.yourdomain.com with your actual domain
+
+vibedtracker.yourdomain.com {
+    # Automatic HTTPS via Let's Encrypt
+
+    # Reverse proxy to API
+    reverse_proxy api:8080
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}

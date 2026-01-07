@@ -1,0 +1,16 @@
+# Binaries
+/api
+*.exe
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Go
+vendor/
+
+# Logs
+*.log

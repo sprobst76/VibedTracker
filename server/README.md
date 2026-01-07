@@ -1,6 +1,33 @@
 # VibedTracker Server
 
-Go-basierte REST-API für VibedTracker Cloud-Sync.
+Go-basierte REST-API für VibedTracker Cloud-Sync mit Zero-Knowledge Verschlüsselung.
+
+## Features
+
+- **Zero-Knowledge Sync**: Server speichert nur verschlüsselte Blobs
+- **Admin-Freischaltung**: Neue User müssen vom Admin freigeschalten werden
+- **JWT Authentication**: Access + Refresh Token
+- **Multi-Device**: Sync zwischen mehreren Geräten
+- **Admin Dashboard**: Web-UI zur User-Verwaltung
+
+## Quick Start
+
+### 1. Konfiguration erstellen
+
+```bash
+cp .env.example .env
+# .env bearbeiten und sichere Werte setzen
+```
+
+### 2. Mit Docker starten
+
+```bash
+docker-compose up -d
+```
+
+### 3. Admin-Dashboard öffnen
+
+Öffne http://localhost:8080/admin/ und melde dich mit den in `.env` konfigurierten Admin-Credentials an.
 
 ## Architektur
 
@@ -9,221 +36,142 @@ Go-basierte REST-API für VibedTracker Cloud-Sync.
 │                      VibedTracker API                       │
 ├─────────────────────────────────────────────────────────────┤
 │  Endpoints                                                  │
-│  ├── /auth     - Registrierung, Login, Email-Verification  │
+│  ├── /auth     - Register, Login, Token Refresh            │
 │  ├── /sync     - Push/Pull verschlüsselter Daten          │
 │  ├── /devices  - Geräteverwaltung                          │
 │  └── /admin    - User-Verwaltung (Admin only)              │
 ├─────────────────────────────────────────────────────────────┤
-│  Middleware                                                 │
-│  ├── JWT Authentication                                     │
-│  ├── Rate Limiting                                          │
-│  └── CORS                                                   │
+│  Middleware: JWT Auth, CORS                                 │
 ├─────────────────────────────────────────────────────────────┤
-│  Database: PostgreSQL                                       │
-│  ├── users, devices, encrypted_data                         │
+│  Database: PostgreSQL 15                                    │
 └─────────────────────────────────────────────────────────────┘
 ```
-
-## Zero-Knowledge Prinzip
-
-Der Server speichert **nur verschlüsselte Blobs**:
-- Verschlüsselung erfolgt auf dem Gerät (AES-256-GCM)
-- Server kann Daten nicht lesen
-- Passphrase wird niemals übertragen
-- Key-Verification Hash zur Passphrase-Prüfung
-
-## Tech Stack
-
-- **Sprache**: Go 1.21+
-- **Framework**: Gin oder Chi (leichtgewichtig)
-- **Datenbank**: PostgreSQL 15+
-- **Auth**: JWT (RS256)
-- **Deployment**: Docker + Docker Compose
 
 ## Projektstruktur
 
 ```
 server/
-├── cmd/
-│   └── api/
-│       └── main.go           # Einstiegspunkt
+├── cmd/api/main.go           # Einstiegspunkt
 ├── internal/
 │   ├── config/               # Konfiguration
+│   ├── database/             # DB-Connection
 │   ├── handlers/             # HTTP Handler
-│   │   ├── auth.go
-│   │   ├── sync.go
-│   │   ├── devices.go
-│   │   └── admin.go
-│   ├── middleware/           # JWT, Rate Limit
+│   ├── middleware/           # JWT Auth
 │   ├── models/               # Datenmodelle
-│   ├── repository/           # DB-Zugriff
-│   └── services/             # Business Logic
+│   └── repository/           # DB-Zugriff
 ├── migrations/               # SQL Migrationen
 ├── admin/                    # Admin Dashboard (HTML/JS)
 ├── docker-compose.yml
 ├── Dockerfile
-├── go.mod
-└── README.md
+└── go.mod
 ```
 
 ## API Endpoints
 
-### Auth
+### Auth (Public)
 
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| POST | `/auth/register` | Neuen Account erstellen |
-| POST | `/auth/login` | Login, JWT erhalten |
-| POST | `/auth/refresh` | Token erneuern |
-| POST | `/auth/verify-email` | Email verifizieren |
-| POST | `/auth/forgot-password` | Passwort zurücksetzen |
-| POST | `/auth/change-password` | Passwort ändern |
+| POST | `/api/v1/auth/register` | Account erstellen (wartet auf Freischaltung) |
+| POST | `/api/v1/auth/login` | Login, JWT + Refresh Token |
+| POST | `/api/v1/auth/refresh` | Access Token erneuern |
 
-### Sync
+### User (Auth Required)
 
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| GET | `/sync/pull` | Änderungen seit Timestamp holen |
-| POST | `/sync/push` | Lokale Änderungen hochladen |
-| GET | `/sync/status` | Sync-Status abfragen |
+| GET | `/api/v1/me` | Eigene User-Daten |
+| POST | `/api/v1/key` | Key-Salt + Verification-Hash setzen |
 
-### Devices
-
-| Method | Endpoint | Beschreibung |
-|--------|----------|--------------|
-| GET | `/devices` | Alle registrierten Geräte |
-| POST | `/devices` | Neues Gerät registrieren |
-| DELETE | `/devices/:id` | Gerät entfernen |
-
-### Admin (nur für Admins)
+### Sync (Auth + Approved Required)
 
 | Method | Endpoint | Beschreibung |
 |--------|----------|--------------|
-| GET | `/admin/users` | Alle User auflisten |
-| GET | `/admin/users/:id` | User-Details |
-| POST | `/admin/users/:id/approve` | User freischalten |
-| POST | `/admin/users/:id/block` | User sperren |
-| DELETE | `/admin/users/:id` | User löschen |
-| GET | `/admin/stats` | Statistiken |
+| GET | `/api/v1/sync/pull?device_id=...&since=0` | Änderungen holen |
+| POST | `/api/v1/sync/push` | Änderungen hochladen |
+| GET | `/api/v1/sync/status` | Sync-Status |
 
-## Datenbank-Schema
+### Devices (Auth Required)
 
-```sql
--- Users
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    email_verified BOOLEAN DEFAULT FALSE,
-    is_approved BOOLEAN DEFAULT FALSE,
-    is_admin BOOLEAN DEFAULT FALSE,
-    is_blocked BOOLEAN DEFAULT FALSE,
-    key_salt BYTEA,                    -- Salt für Schlüsselableitung
-    key_verification_hash BYTEA,       -- Hash zur Passphrase-Prüfung
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET | `/api/v1/devices` | Eigene Geräte auflisten |
+| POST | `/api/v1/devices` | Gerät registrieren |
+| DELETE | `/api/v1/devices/:id` | Gerät entfernen |
 
--- Devices
-CREATE TABLE devices (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_name VARCHAR(255),
-    device_type VARCHAR(50),           -- 'android', 'ios'
-    push_token TEXT,
-    last_sync TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### Admin (Admin Required)
 
--- Encrypted Data (Zero-Knowledge)
-CREATE TABLE encrypted_data (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_id UUID REFERENCES devices(id),
-    data_type VARCHAR(50) NOT NULL,    -- 'work_entry', 'vacation', etc.
-    local_id VARCHAR(255),             -- ID auf dem Gerät
-    encrypted_blob BYTEA NOT NULL,     -- Verschlüsselte Daten
-    nonce BYTEA NOT NULL,              -- IV für AES-GCM
-    version INT DEFAULT 1,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ,            -- Soft-Delete für Sync
-    UNIQUE(user_id, data_type, local_id)
-);
-
--- Indices
-CREATE INDEX idx_encrypted_data_user_updated ON encrypted_data(user_id, updated_at);
-CREATE INDEX idx_encrypted_data_type ON encrypted_data(data_type);
-CREATE INDEX idx_devices_user ON devices(user_id);
-```
-
-## Setup
-
-### Voraussetzungen
-
-- Go 1.21+
-- PostgreSQL 15+
-- Docker & Docker Compose (optional)
-
-### Lokale Entwicklung
-
-```bash
-# Abhängigkeiten
-go mod download
-
-# PostgreSQL starten (Docker)
-docker run -d --name vibedtracker-db \
-  -e POSTGRES_USER=vibedtracker \
-  -e POSTGRES_PASSWORD=secret \
-  -e POSTGRES_DB=vibedtracker \
-  -p 5432:5432 \
-  postgres:15
-
-# Migrationen ausführen
-go run cmd/migrate/main.go up
-
-# Server starten
-go run cmd/api/main.go
-```
-
-### Docker Deployment
-
-```bash
-docker-compose up -d
-```
+| Method | Endpoint | Beschreibung |
+|--------|----------|--------------|
+| GET | `/api/v1/admin/users` | Alle User |
+| GET | `/api/v1/admin/users/:id` | User-Details |
+| POST | `/api/v1/admin/users/:id/approve` | User freischalten |
+| POST | `/api/v1/admin/users/:id/block` | User sperren |
+| POST | `/api/v1/admin/users/:id/unblock` | User entsperren |
+| DELETE | `/api/v1/admin/users/:id` | User löschen |
+| GET | `/api/v1/admin/stats` | Statistiken |
 
 ## Konfiguration
 
-Umgebungsvariablen:
+Umgebungsvariablen in `.env`:
 
-| Variable | Beschreibung | Default |
+| Variable | Beschreibung | Pflicht |
 |----------|--------------|---------|
-| `DATABASE_URL` | PostgreSQL Connection String | - |
-| `JWT_SECRET` | Secret für JWT Signierung | - |
-| `PORT` | API Port | 8080 |
-| `ADMIN_EMAIL` | Erster Admin-Account | - |
-| `SMTP_HOST` | Mail-Server für Verification | - |
-| `SMTP_PORT` | Mail-Port | 587 |
-| `SMTP_USER` | Mail-User | - |
-| `SMTP_PASS` | Mail-Passwort | - |
+| `DATABASE_URL` | PostgreSQL Connection String | Ja |
+| `DB_PASSWORD` | PostgreSQL Passwort | Ja |
+| `JWT_SECRET` | Secret für Token-Signierung (min. 32 Zeichen) | Ja |
+| `ADMIN_EMAIL` | Email des ersten Admin-Accounts | Ja |
+| `ADMIN_PASSWORD` | Passwort des Admin-Accounts | Ja |
+| `ALLOW_REGISTRATION` | Registrierung erlauben (default: true) | Nein |
+| `PORT` | API Port (default: 8080) | Nein |
+
+## Deployment auf VPS
+
+### Mit Docker Compose
+
+1. Repository klonen:
+   ```bash
+   git clone https://github.com/sprobst76/VibedTracker.git
+   cd VibedTracker/server
+   ```
+
+2. `.env` konfigurieren:
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+
+3. Starten:
+   ```bash
+   docker-compose up -d
+   ```
+
+### Mit HTTPS (Caddy)
+
+1. `Caddyfile` bearbeiten und Domain setzen
+2. In `docker-compose.yml` Caddy-Service einkommentieren
+3. Ports 80 + 443 freigeben
+4. `docker-compose up -d`
 
 ## Sicherheit
 
-- [x] HTTPS erforderlich (Let's Encrypt)
-- [x] JWT mit RS256 (asymmetrisch)
-- [x] Rate Limiting
-- [x] Password Hashing (bcrypt, cost 12)
-- [x] SQL Injection Prevention (prepared statements)
+- [x] Passwort-Hashing mit bcrypt
+- [x] JWT mit HMAC-SHA256
+- [x] Zero-Knowledge: Nur verschlüsselte Daten gespeichert
+- [x] Admin-Freischaltung für neue User
+- [x] Refresh Token Rotation
 - [x] CORS konfiguriert
-- [x] Helmet-ähnliche Security Headers
-- [x] Verschlüsselte Daten (Zero-Knowledge)
+- [x] SQL Injection Prevention (prepared statements)
 
-## Admin Dashboard
+## Tech Stack
 
-Einfaches HTML/JS Dashboard unter `/admin/`:
-- User-Liste mit Freischaltung
-- Statistiken (User-Anzahl, Sync-Status)
-- Passwort-geschützt (Admin-JWT)
+- **Go 1.21+**
+- **Gin** - HTTP Framework
+- **pgx** - PostgreSQL Driver
+- **golang-jwt** - JWT Library
+- **bcrypt** - Password Hashing
+- **PostgreSQL 15**
+- **Docker** + Docker Compose
 
 ## Lizenz
 

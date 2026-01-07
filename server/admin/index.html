@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibedTracker Admin</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        /* Login */
+        #login-form {
+            max-width: 400px;
+            margin: 100px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        #login-form h1 { margin-bottom: 30px; text-align: center; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #555; }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .form-group input:focus { outline: none; border-color: #007AFF; }
+        .btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-sm { padding: 6px 12px; font-size: 14px; width: auto; }
+
+        /* Dashboard */
+        #dashboard { display: none; }
+        header {
+            background: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        header h1 { font-size: 20px; color: #333; }
+        #logout-btn { background: none; border: 1px solid #ddd; color: #555; padding: 8px 16px; }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .stat-card h3 { font-size: 14px; color: #888; margin-bottom: 8px; }
+        .stat-card .value { font-size: 32px; font-weight: 700; color: #333; }
+        .stat-card.pending .value { color: #f0ad4e; }
+        .stat-card.approved .value { color: #28a745; }
+
+        /* Users table */
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h2 { font-size: 18px; color: #333; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px 20px; text-align: left; }
+        th { background: #f8f9fa; font-weight: 600; color: #555; font-size: 13px; text-transform: uppercase; }
+        tr:not(:last-child) td { border-bottom: 1px solid #eee; }
+        tr:hover td { background: #f8f9fa; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-pending { background: #fff3cd; color: #856404; }
+        .badge-approved { background: #d4edda; color: #155724; }
+        .badge-blocked { background: #f8d7da; color: #721c24; }
+        .badge-admin { background: #cce5ff; color: #004085; }
+
+        .actions { display: flex; gap: 8px; }
+
+        .error { color: #dc3545; margin-top: 10px; text-align: center; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="login-form">
+        <h1>VibedTracker Admin</h1>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="admin@example.com">
+        </div>
+        <div class="form-group">
+            <label>Passwort</label>
+            <input type="password" id="password" placeholder="********">
+        </div>
+        <button class="btn" onclick="login()">Anmelden</button>
+        <p id="login-error" class="error hidden"></p>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard">
+        <header>
+            <h1>VibedTracker Admin</h1>
+            <button id="logout-btn" class="btn btn-sm" onclick="logout()">Abmelden</button>
+        </header>
+
+        <div class="container">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Gesamt User</h3>
+                    <div class="value" id="stat-total">-</div>
+                </div>
+                <div class="stat-card pending">
+                    <h3>Ausstehend</h3>
+                    <div class="value" id="stat-pending">-</div>
+                </div>
+                <div class="stat-card approved">
+                    <h3>Freigeschalten</h3>
+                    <div class="value" id="stat-approved">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Geräte</h3>
+                    <div class="value" id="stat-devices">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Sync Items</h3>
+                    <div class="value" id="stat-items">-</div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>User-Verwaltung</h2>
+                    <button class="btn btn-sm" onclick="loadData()">Aktualisieren</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Registriert</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table">
+                        <tr><td colspan="4" style="text-align:center">Lade...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api/v1';
+        let token = localStorage.getItem('admin_token');
+
+        // Check if logged in
+        if (token) {
+            showDashboard();
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+            errorEl.classList.add('hidden');
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Login fehlgeschlagen');
+                }
+
+                if (!data.user.is_admin) {
+                    throw new Error('Kein Admin-Zugang');
+                }
+
+                token = data.access_token;
+                localStorage.setItem('admin_token', token);
+                localStorage.setItem('refresh_token', data.refresh_token);
+                showDashboard();
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('refresh_token');
+            token = null;
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        function showDashboard() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            loadData();
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+            if (body) options.body = JSON.stringify(body);
+
+            const res = await fetch(`${API_BASE}${endpoint}`, options);
+
+            if (res.status === 401) {
+                logout();
+                throw new Error('Session abgelaufen');
+            }
+
+            return res.json();
+        }
+
+        async function loadData() {
+            try {
+                // Load stats
+                const stats = await apiCall('/admin/stats');
+                document.getElementById('stat-total').textContent = stats.total_users || 0;
+                document.getElementById('stat-pending').textContent = stats.pending_users || 0;
+                document.getElementById('stat-approved').textContent = stats.approved_users || 0;
+                document.getElementById('stat-devices').textContent = stats.total_devices || 0;
+                document.getElementById('stat-items').textContent = stats.total_sync_items || 0;
+
+                // Load users
+                const usersData = await apiCall('/admin/users');
+                const users = usersData.users || [];
+                const tbody = document.getElementById('users-table');
+
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Keine User</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = users.map(user => {
+                    let status = '';
+                    if (user.is_blocked) {
+                        status = '<span class="badge badge-blocked">Gesperrt</span>';
+                    } else if (user.is_approved) {
+                        status = '<span class="badge badge-approved">Freigeschalten</span>';
+                    } else {
+                        status = '<span class="badge badge-pending">Ausstehend</span>';
+                    }
+                    if (user.is_admin) {
+                        status += ' <span class="badge badge-admin">Admin</span>';
+                    }
+
+                    const date = new Date(user.created_at).toLocaleDateString('de-DE');
+
+                    let actions = '';
+                    if (!user.is_admin) {
+                        if (!user.is_approved && !user.is_blocked) {
+                            actions += `<button class="btn btn-success btn-sm" onclick="approveUser('${user.id}')">Freischalten</button>`;
+                        }
+                        if (!user.is_blocked) {
+                            actions += `<button class="btn btn-danger btn-sm" onclick="blockUser('${user.id}')">Sperren</button>`;
+                        } else {
+                            actions += `<button class="btn btn-sm" onclick="unblockUser('${user.id}')">Entsperren</button>`;
+                        }
+                        actions += `<button class="btn btn-danger btn-sm" onclick="deleteUser('${user.id}')">Löschen</button>`;
+                    }
+
+                    return `
+                        <tr>
+                            <td>${user.email}</td>
+                            <td>${status}</td>
+                            <td>${date}</td>
+                            <td class="actions">${actions}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error('Load error:', err);
+            }
+        }
+
+        async function approveUser(id) {
+            if (!confirm('User freischalten?')) return;
+            await apiCall(`/admin/users/${id}/approve`, 'POST');
+            loadData();
+        }
+
+        async function blockUser(id) {
+            if (!confirm('User sperren?')) return;
+            await apiCall(`/admin/users/${id}/block`, 'POST');
+            loadData();
+        }
+
+        async function unblockUser(id) {
+            if (!confirm('User entsperren?')) return;
+            await apiCall(`/admin/users/${id}/unblock`, 'POST');
+            loadData();
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('User wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')) return;
+            await apiCall(`/admin/users/${id}`, 'DELETE');
+            loadData();
+        }
+
+        // Handle Enter key on login form
+        document.getElementById('password').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>
