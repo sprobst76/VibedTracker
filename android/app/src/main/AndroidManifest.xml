@@ -3,9 +3,10 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
     <application
-        android:label="time_tracker"
+        android:label="VibedTracker"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".MainActivity"
             android:exported="true"

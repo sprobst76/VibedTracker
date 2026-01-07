@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Clock circle (outer ring) -->
+    <path
+        android:pathData="M54,27 A27,27 0 1,1 53.99,27"
+        android:strokeWidth="3"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"/>
+
+    <!-- Clock tick marks (12, 3, 6, 9 o'clock) -->
+    <path
+        android:pathData="M54,30 L54,33"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M54,75 L54,78"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M30,54 L33,54"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M75,54 L78,54"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+
+    <!-- Stylized "V" in the center (like check/vibes) -->
+    <path
+        android:pathData="M40,50 L50,65 L68,42"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- Vibration/wave lines (left side) -->
+    <path
+        android:pathData="M22,45 Q18,54 22,63"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:alpha="0.7"/>
+    <path
+        android:pathData="M16,40 Q10,54 16,68"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:alpha="0.4"/>
+
+    <!-- Vibration/wave lines (right side) -->
+    <path
+        android:pathData="M86,45 Q90,54 86,63"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:alpha="0.7"/>
+    <path
+        android:pathData="M92,40 Q98,54 92,68"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:alpha="0.4"/>
+
+</vector>
