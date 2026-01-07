@@ -94,19 +94,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Register device if provided
-	var deviceID uuid.UUID
-	if req.DeviceName != "" {
-		device, err := h.devices.Create(c.Request.Context(), user.ID, &models.RegisterDeviceRequest{
-			DeviceName: req.DeviceName,
-			DeviceType: req.DeviceType,
-		})
-		if err == nil {
-			deviceID = device.ID
-		}
-	} else {
-		deviceID = uuid.New() // Temporary device ID
+	// Register device (always create one)
+	deviceName := req.DeviceName
+	if deviceName == "" {
+		deviceName = "Unknown Device"
 	}
+	deviceType := req.DeviceType
+	if deviceType == "" {
+		deviceType = "unknown"
+	}
+	device, err := h.devices.Create(c.Request.Context(), user.ID, &models.RegisterDeviceRequest{
+		DeviceName: deviceName,
+		DeviceType: deviceType,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register device"})
+		return
+	}
+	deviceID := device.ID
 
 	// Generate tokens
 	accessToken, err := middleware.GenerateAccessToken(user.ID, user.Email, user.IsAdmin, user.IsApproved, h.cfg.JWTExpiry)
