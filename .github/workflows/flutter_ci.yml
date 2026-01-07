@@ -80,7 +80,7 @@ jobs:
           name: "VibedTracker ${{ steps.version.outputs.VERSION }}"
           draft: false
           prerelease: ${{ contains(steps.version.outputs.VERSION, 'beta') || contains(steps.version.outputs.VERSION, 'alpha') }}
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             build/app/outputs/flutter-apk/app-release.apk
         env:
