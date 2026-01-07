@@ -1,7 +1,5 @@
-version: '3.8'
-
 # Production für Traefik auf halbewahrheit21.de
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Usage: docker compose -f docker-compose.prod.yml up -d
 
 networks:
   ai-lab:
@@ -10,14 +8,22 @@ networks:
 
 services:
   api:
+    build: .
     container_name: vibedtracker-api
-    # Kein ports: - Traefik macht das
-    ports: []
     networks:
       - ai-lab
       - default
     environment:
+      - DATABASE_URL=postgres://vibedtracker:${DB_PASSWORD}@db:5432/vibedtracker?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
       - TZ=Europe/Berlin
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -44,10 +50,23 @@ services:
       - "traefik.http.services.vibedtracker.loadbalancer.server.port=8080"
 
   db:
+    image: postgres:15-alpine
     container_name: vibedtracker-db
-    # DB nur im internen Netzwerk
     networks:
       - default
+    environment:
+      - POSTGRES_USER=vibedtracker
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=vibedtracker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibedtracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -59,3 +78,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  postgres_data:
