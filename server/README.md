@@ -229,7 +229,7 @@ cat backup.sql | docker-compose exec -T db psql -U vibedtracker vibedtracker
 
 ## Tech Stack
 
-- **Go 1.21+** - API Server
+- **Go 1.23+** - API Server
 - **Gin** - HTTP Framework
 - **pgx** - PostgreSQL Driver
 - **golang-jwt** - JWT Library
@@ -237,6 +237,39 @@ cat backup.sql | docker-compose exec -T db psql -U vibedtracker vibedtracker
 - **PostgreSQL 15** - Datenbank
 - **Docker** + Docker Compose
 - **Traefik** - Reverse Proxy (optional)
+
+## Flutter App Integration (TODO)
+
+Die Flutter-App muss erweitert werden um Cloud-Sync zu nutzen:
+
+### 1. Auth Service
+- Login/Register Screen
+- JWT Token Management (Access + Refresh)
+- Secure Storage für Tokens
+
+### 2. Encryption Service
+- Key Derivation aus User-Passwort (PBKDF2/Argon2)
+- AES-256-GCM Verschlüsselung
+- Key-Salt beim Server speichern
+
+### 3. Sync Service
+- Änderungen lokal tracken (last_modified)
+- Push: Lokale Änderungen verschlüsseln und hochladen
+- Pull: Server-Änderungen holen und entschlüsseln
+- Konflikt-Handling (last-write-wins oder merge)
+
+### 4. Device Management
+- Gerät beim ersten Start registrieren
+- Device-ID persistent speichern
+
+### Empfohlene Packages
+```yaml
+dependencies:
+  http: ^1.1.0              # API Calls
+  flutter_secure_storage: ^9.0.0  # Token Storage
+  cryptography: ^2.7.0      # AES-256-GCM
+  uuid: ^4.0.0              # Device IDs
+```
 
 ## Lizenz
 
