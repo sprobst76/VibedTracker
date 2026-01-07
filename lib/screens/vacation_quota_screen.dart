@@ -382,8 +382,8 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     );
 
     if (result != null) {
-      final entitlement = result['entitlement'] as double?;
-      final manualDays = result['manualDays'] as double? ?? 0.0;
+      final double? entitlement = result['entitlement'];
+      final double manualDays = result['manualDays'] ?? 0.0;
       final resetEntitlement = result['resetEntitlement'] as bool? ?? false;
 
       if (resetEntitlement) {
