@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,11 +7,13 @@ import '../providers.dart';
 import '../models/settings.dart';
 import '../services/test_data_service.dart';
 import '../services/reminder_service.dart';
+import '../services/backup_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
 import 'calendar_settings_screen.dart';
 import 'projects_screen.dart';
 import 'security_settings_screen.dart';
+import 'vacation_quota_screen.dart';
 import '../theme/theme_colors.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -512,6 +515,10 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Backup Section
+          _buildBackupSection(context, ref),
           const SizedBox(height: 32),
 
           // Info Section
@@ -739,6 +746,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VacationQuotaScreen()),
+              ),
+              icon: const Icon(Icons.edit_calendar),
+              label: const Text('Urlaubsanspruch pro Jahr verwalten'),
+            ),
+            const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Resturlaub übertragen'),
@@ -748,11 +764,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
               value: settings.enableVacationCarryover,
               onChanged: notifier.updateVacationCarryover,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Urlaubstage pro Jahr werden im Urlaubs-Screen verwaltet.',
-              style: TextStyle(fontSize: 11, color: context.subtleText),
             ),
           ],
         ),
@@ -916,6 +927,151 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBackupSection(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.backup,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Daten & Backup',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Daten exportieren und importieren',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _createBackup(context),
+                    icon: const Icon(Icons.upload),
+                    label: const Text('Backup erstellen'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showImportInfo(context, ref),
+                    icon: const Icon(Icons.download),
+                    label: const Text('Importieren'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: context.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: context.infoForeground),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Backup enthält alle Einträge, Urlaub, Projekte und Einstellungen.',
+                      style: TextStyle(fontSize: 11, color: context.infoForeground),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createBackup(BuildContext context) async {
+    try {
+      // Loading anzeigen
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final backupService = BackupService();
+      await backupService.shareBackup();
+
+      if (context.mounted) {
+        Navigator.pop(context); // Loading schließen
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Loading schließen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup fehlgeschlagen: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImportInfo(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Backup importieren'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Um ein Backup zu importieren:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 12),
+            Text('1. Öffne die Backup-ZIP-Datei auf deinem Gerät'),
+            SizedBox(height: 4),
+            Text('2. Wähle "Öffnen mit" → VibedTracker'),
+            SizedBox(height: 12),
+            Text(
+              'Alternativ: Backup-Datei in den Download-Ordner kopieren und App neu starten.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Hinweis: Bestehende Daten werden nicht überschrieben, nur ergänzt.',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Verstanden'),
+          ),
+        ],
       ),
     );
   }

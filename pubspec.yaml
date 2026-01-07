@@ -43,6 +43,7 @@ dependencies:
   # Export
   excel: ^4.0.3                    # Excel-Datei-Erzeugung
   share_plus: ^10.1.4              # Teilen/Speichern von Dateien
+  archive: ^3.6.1
 
 dev_dependencies:
   flutter_test:

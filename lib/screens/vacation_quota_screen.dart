@@ -19,9 +19,8 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     final settings = ref.watch(settingsProvider);
     final currentYear = DateTime.now().year;
 
-    // Jahre von 2 Jahren zurück bis 1 Jahr voraus
+    // Jahre: Vorjahr, aktuelles Jahr, nächstes Jahr
     final years = [
-      currentYear - 2,
       currentYear - 1,
       currentYear,
       currentYear + 1,
@@ -211,7 +210,14 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
                                    '${stats.adjustments.abs().toStringAsFixed(0)} Tage'),
                   const Divider(height: 8),
                   _buildDetailRow('= Gesamt', '${stats.totalEntitlement.toStringAsFixed(0)} Tage', bold: true),
-                  _buildDetailRow('- Genommen', '${stats.usedDays.toStringAsFixed(0)} Tage'),
+                  if (stats.trackedDays > 0)
+                    _buildDetailRow('- Eingetragen', '${stats.trackedDays.toStringAsFixed(0)} Tage'),
+                  if (stats.manualDays > 0)
+                    _buildDetailRow('- Manuell', '${stats.manualDays.toStringAsFixed(0)} Tage'),
+                  if (stats.trackedDays > 0 || stats.manualDays > 0)
+                    _buildDetailRow('- Genommen gesamt', '${stats.usedDays.toStringAsFixed(0)} Tage'),
+                  if (stats.trackedDays == 0 && stats.manualDays == 0)
+                    _buildDetailRow('- Genommen', '0 Tage'),
                   const Divider(height: 8),
                   _buildDetailRow('= Verbleibend', '${stats.remainingDays.toStringAsFixed(0)} Tage',
                                  bold: true,
@@ -250,54 +256,109 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     final quota = quotaNotifier.getForYear(year);
     final hasCustom = quota?.annualEntitlementDays != null;
 
-    final controller = TextEditingController(
+    final entitlementController = TextEditingController(
       text: stats.annualEntitlement.toStringAsFixed(0),
     );
+    final manualDaysController = TextEditingController(
+      text: stats.manualDays > 0 ? stats.manualDays.toStringAsFixed(0) : '',
+    );
 
-    final result = await showDialog<double?>(
+    final result = await showDialog<Map<String, double?>?>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Urlaubsanspruch $year'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Standard aus Einstellungen: $defaultDays Tage',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: 'Urlaubstage $year',
-                border: const OutlineInputBorder(),
-                suffixText: 'Tage',
-                hintText: defaultDays.toString(),
+        title: Text('Urlaub $year bearbeiten'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Jahresanspruch
+              Text(
+                'Jahresanspruch',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
               ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              hasCustom
-                  ? 'Aktuell: Individueller Wert gesetzt'
-                  : 'Aktuell: Nutzt Standard ($defaultDays Tage)',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-            ),
-            if (hasCustom) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context, -1.0),
-                icon: const Icon(Icons.restore, size: 16),
-                label: const Text('Auf Standard zurücksetzen'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange,
+              const SizedBox(height: 4),
+              Text(
+                'Standard: $defaultDays Tage',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: entitlementController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: 'Urlaubstage',
+                  border: const OutlineInputBorder(),
+                  suffixText: 'Tage',
+                  hintText: defaultDays.toString(),
                 ),
               ),
+              if (hasCustom) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    entitlementController.text = defaultDays.toString();
+                  },
+                  icon: const Icon(Icons.restore, size: 16),
+                  label: const Text('Standard verwenden'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+
+              // Manuell genommene Tage
+              Text(
+                'Bereits genommene Tage (manuell)',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Für Tage die nicht einzeln eingetragen sind.\n'
+                'Z.B. aus früherem System übernommen.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: manualDaysController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Manuell genommen',
+                  border: OutlineInputBorder(),
+                  suffixText: 'Tage',
+                  hintText: '0',
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (stats.trackedDays > 0)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Zusätzlich: ${stats.trackedDays.toStringAsFixed(0)} eingetragene Tage',
+                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -306,8 +367,13 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
           ),
           FilledButton(
             onPressed: () {
-              final value = double.tryParse(controller.text);
-              Navigator.pop(context, value);
+              final entitlement = double.tryParse(entitlementController.text);
+              final manualDays = double.tryParse(manualDaysController.text) ?? 0.0;
+              Navigator.pop(context, {
+                'entitlement': entitlement,
+                'manualDays': manualDays,
+                'resetEntitlement': entitlement?.toInt() == defaultDays,
+              });
             },
             child: const Text('Speichern'),
           ),
@@ -316,11 +382,16 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     );
 
     if (result != null) {
-      if (result == -1.0) {
+      final entitlement = result['entitlement'] as double?;
+      final manualDays = result['manualDays'] as double? ?? 0.0;
+      final resetEntitlement = result['resetEntitlement'] as bool? ?? false;
+
+      if (resetEntitlement) {
         await quotaNotifier.setAnnualEntitlement(year, null);
-      } else {
-        await quotaNotifier.setAnnualEntitlement(year, result);
+      } else if (entitlement != null) {
+        await quotaNotifier.setAnnualEntitlement(year, entitlement);
       }
+      await quotaNotifier.setManualUsedDays(year, manualDays);
     }
   }
 }
