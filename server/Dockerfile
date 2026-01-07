@@ -26,6 +26,7 @@ RUN apk add --no-cache ca-certificates curl
 # Copy binary and static files
 COPY --from=builder /api .
 COPY admin/ ./admin/
+COPY webapp/ ./webapp/
 
 # Create non-root user
 RUN adduser -D -g '' appuser

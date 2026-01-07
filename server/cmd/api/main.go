@@ -158,8 +158,32 @@ func main() {
 
 	// Serve admin dashboard
 	r.Static("/admin", "./admin")
-	r.GET("/", func(c *gin.Context) {
-		c.Redirect(302, "/admin/")
+
+	// Serve Flutter Web App (SPA)
+	r.Static("/assets", "./webapp/assets")
+	r.Static("/icons", "./webapp/icons")
+	r.Static("/canvaskit", "./webapp/canvaskit")
+	r.StaticFile("/flutter.js", "./webapp/flutter.js")
+	r.StaticFile("/flutter_bootstrap.js", "./webapp/flutter_bootstrap.js")
+	r.StaticFile("/flutter_service_worker.js", "./webapp/flutter_service_worker.js")
+	r.StaticFile("/main.dart.js", "./webapp/main.dart.js")
+	r.StaticFile("/manifest.json", "./webapp/manifest.json")
+	r.StaticFile("/version.json", "./webapp/version.json")
+	r.StaticFile("/favicon.png", "./webapp/favicon.png")
+
+	// SPA fallback: alle anderen Routen → index.html
+	r.NoRoute(func(c *gin.Context) {
+		// Nicht für /api oder /admin Pfade
+		path := c.Request.URL.Path
+		if len(path) >= 4 && path[:4] == "/api" {
+			c.JSON(404, gin.H{"error": "not found"})
+			return
+		}
+		if len(path) >= 6 && path[:6] == "/admin" {
+			c.JSON(404, gin.H{"error": "not found"})
+			return
+		}
+		c.File("./webapp/index.html")
 	})
 
 	log.Printf("VibedTracker API starting on port %s", cfg.Port)
