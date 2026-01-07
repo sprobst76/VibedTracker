@@ -13,6 +13,8 @@ services:
     networks:
       - ai-lab
       - default
+    ports:
+      - "127.0.0.1:7842:8080"  # Nur localhost, kreativ: 7842 = "VTAZ" (VibedTracker A-Z)
     environment:
       - DATABASE_URL=postgres://vibedtracker:${DB_PASSWORD}@db:5432/vibedtracker?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
@@ -54,6 +56,8 @@ services:
     container_name: vibedtracker-db
     networks:
       - default
+    ports:
+      - "127.0.0.1:5471:5432"  # Nur localhost, kreativ: 5471 = "VIBE"
     environment:
       - POSTGRES_USER=vibedtracker
       - POSTGRES_PASSWORD=${DB_PASSWORD}
