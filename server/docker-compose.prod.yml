@@ -1,35 +1,61 @@
 version: '3.8'
 
-# Production override für Traefik
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production für Traefik auf halbewahrheit21.de
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+networks:
+  ai-lab:
+    external: true
+    name: ailab_ai-lab
 
 services:
   api:
-    # Port nicht exposen - Traefik macht das
+    container_name: vibedtracker-api
+    # Kein ports: - Traefik macht das
     ports: []
     networks:
-      - traefik-public
+      - ai-lab
       - default
+    environment:
+      - TZ=Europe/Berlin
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     labels:
       - "traefik.enable=true"
-      # HTTP Router
-      - "traefik.http.routers.vibedtracker.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.vibedtracker.rule=Host(`vibedtracker.lab.halbewahrheit21.de`)"
       - "traefik.http.routers.vibedtracker.entrypoints=websecure"
-      - "traefik.http.routers.vibedtracker.tls=true"
-      - "traefik.http.routers.vibedtracker.tls.certresolver=letsencrypt"
-      # Service
+      - "traefik.http.routers.vibedtracker.tls.certresolver=cloudflare"
+      - "traefik.http.routers.vibedtracker.middlewares=security-headers@file,rate-limit-standard@file"
       - "traefik.http.services.vibedtracker.loadbalancer.server.port=8080"
-      # Optional: HTTP -> HTTPS redirect
-      - "traefik.http.routers.vibedtracker-http.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.vibedtracker-http.entrypoints=web"
-      - "traefik.http.routers.vibedtracker-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
   db:
-    # DB nicht im Traefik-Netzwerk
+    container_name: vibedtracker-db
+    # DB nur im internen Netzwerk
     networks:
       - default
-
-networks:
-  traefik-public:
-    external: true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
