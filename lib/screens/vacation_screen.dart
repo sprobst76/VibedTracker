@@ -6,6 +6,7 @@ import '../models/vacation.dart';
 import '../models/vacation_quota.dart';
 import '../services/holiday_service.dart';
 import '../theme/theme_colors.dart';
+import 'vacation_quota_screen.dart';
 
 class VacationScreen extends ConsumerStatefulWidget {
   const VacationScreen({super.key});
@@ -82,6 +83,14 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
       appBar: AppBar(
         title: const Text('Abwesenheit verwalten'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            tooltip: 'Urlaubsanspruch pro Jahr',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VacationQuotaScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () => _showLegend(context),
