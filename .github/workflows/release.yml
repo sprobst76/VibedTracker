@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     name: Build Android APK
@@ -64,12 +67,12 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: TimeTracker ${{ steps.version.outputs.VERSION }}
+          name: VibedTracker ${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           files: app-release.apk
           body: |
-            ## TimeTracker ${{ steps.version.outputs.VERSION }}
+            ## VibedTracker ${{ steps.version.outputs.VERSION }}
 
             ### Features
             - Geofence-basierte automatische Zeiterfassung
