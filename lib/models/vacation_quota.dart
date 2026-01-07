@@ -20,12 +20,16 @@ class VacationQuota extends HiveObject {
   @HiveField(4)
   double manualUsedDays; // Manuell eingetragene genommene Tage (für Vorjahre)
 
+  @HiveField(5)
+  double? annualEntitlementDays; // Jahresanspruch (überschreibt globale Settings wenn gesetzt)
+
   VacationQuota({
     required this.year,
     this.carryoverDays = 0.0,
     this.adjustmentDays = 0.0,
     this.note,
     this.manualUsedDays = 0.0,
+    this.annualEntitlementDays,
   });
 }
 

@@ -442,6 +442,15 @@ class WeeklyHoursPeriodsNotifier extends StateNotifier<List<WeeklyHoursPeriod>> 
 
   /// Adds a new period
   Future<void> addPeriod(WeeklyHoursPeriod period) async {
+    // Auto-end any previous unbounded periods (without endDate)
+    for (final existingPeriod in state) {
+      if (existingPeriod.endDate == null && existingPeriod.startDate.isBefore(period.startDate)) {
+        // Set end date to day before new period starts
+        existingPeriod.endDate = period.startDate.subtract(const Duration(days: 1));
+        await existingPeriod.save();
+      }
+    }
+
     await box.add(period);
     _refresh();
   }
@@ -696,6 +705,14 @@ class VacationQuotaNotifier extends StateNotifier<List<VacationQuota>> {
     await quota.save();
     _refresh();
   }
+
+  /// Setzt den Jahresanspruch für ein Jahr (überschreibt globale Settings)
+  Future<void> setAnnualEntitlement(int year, double? days) async {
+    final quota = getOrCreateForYear(year);
+    quota.annualEntitlementDays = days != null ? days.clamp(0, 365) : null;
+    await quota.save();
+    _refresh();
+  }
 }
 
 // Vacation Stats Provider - berechnet Urlaubsstatistiken
@@ -721,9 +738,12 @@ final vacationStatsProvider = Provider.family<VacationStats, int>((ref, year) {
     quota = null;
   }
 
+  // Jahresanspruch: Erst Quote pro Jahr prüfen, sonst globale Settings
+  final annualEntitlement = quota?.annualEntitlementDays ?? settings.annualVacationDays.toDouble();
+
   return VacationStats(
     year: year,
-    annualEntitlement: settings.annualVacationDays.toDouble(),
+    annualEntitlement: annualEntitlement,
     carryover: quota?.carryoverDays ?? 0.0,
     adjustments: quota?.adjustmentDays ?? 0.0,
     trackedDays: trackedDays,

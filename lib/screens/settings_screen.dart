@@ -27,34 +27,7 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           // Weekly Hours Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Wöchentliche Arbeitszeit (Standard)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  _WeeklyHoursInput(
-                    value: settings.weeklyHours,
-                    onChanged: notifier.updateWeeklyHours,
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WeeklyHoursScreen()),
-                    ),
-                    icon: const Icon(Icons.schedule),
-                    label: const Text('Arbeitszeit-Perioden verwalten'),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildWeeklyHoursSection(context, ref),
           const SizedBox(height: 16),
 
           // Arbeitswoche Section
@@ -571,6 +544,64 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildWeeklyHoursSection(BuildContext context, WidgetRef ref) {
+    final periodsNotifier = ref.watch(weeklyHoursPeriodsProvider.notifier);
+    final periods = ref.watch(weeklyHoursPeriodsProvider);
+    final currentHours = periodsNotifier.getWeeklyHoursForDate(DateTime.now());
+
+    // Find active period if any
+    final activePeriods = periods.where((p) => p.containsDate(DateTime.now()));
+    final activePeriod = activePeriods.isNotEmpty ? activePeriods.first : null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Wöchentliche Arbeitszeit',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${currentHours.toStringAsFixed(currentHours == currentHours.roundToDouble() ? 0 : 1)}h',
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              activePeriod != null
+                  ? 'Aktive Periode: ${activePeriod.description ?? "${currentHours}h/Woche"}'
+                  : 'Standard-Arbeitszeit (keine aktive Periode)',
+              style: TextStyle(fontSize: 12, color: context.subtleText),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WeeklyHoursScreen()),
+              ),
+              icon: const Icon(Icons.schedule),
+              label: const Text('Arbeitszeit-Perioden verwalten'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWorkWeekSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
     const weekdayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
@@ -639,6 +670,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _buildVacationSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
     final stats = ref.watch(currentYearVacationStatsProvider);
+    final year = DateTime.now().year;
 
     return Card(
       child: Padding(
@@ -646,37 +678,65 @@ class SettingsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Urlaubsanspruch',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Dein jährlicher Urlaubsanspruch in Tagen.',
-              style: TextStyle(fontSize: 12, color: context.subtleText),
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(
-                  child: TextFormField(
-                    initialValue: settings.annualVacationDays.toString(),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Urlaubstage / Jahr',
-                      suffixText: 'Tage',
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (value) {
-                      final days = int.tryParse(value);
-                      if (days != null) {
-                        notifier.updateAnnualVacationDays(days);
-                      }
-                    },
+                const Expanded(
+                  child: Text(
+                    'Urlaub',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: stats.remainingDays > 0 ? Colors.green : Colors.orange,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${stats.remainingDays.toStringAsFixed(0)} Tage',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            // Resturlaub-Anzeige
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Anspruch $year:', style: TextStyle(color: context.infoForeground)),
+                      Text('${stats.totalEntitlement.toStringAsFixed(0)} Tage',
+                           style: TextStyle(fontWeight: FontWeight.bold, color: context.infoForeground)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Genommen:', style: TextStyle(color: context.infoForeground)),
+                      Text('${stats.usedDays.toStringAsFixed(0)} Tage',
+                           style: TextStyle(color: context.infoForeground)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Verbleibend:', style: TextStyle(color: context.infoForeground)),
+                      Text('${stats.remainingDays.toStringAsFixed(0)} Tage',
+                           style: TextStyle(fontWeight: FontWeight.bold, color: context.infoForeground)),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             SwitchListTile(
@@ -689,25 +749,10 @@ class SettingsScreen extends ConsumerWidget {
               value: settings.enableVacationCarryover,
               onChanged: notifier.updateVacationCarryover,
             ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: context.infoBackground,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.beach_access, size: 16, color: context.infoForeground),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${DateTime.now().year}: ${stats.usedDays.toStringAsFixed(0)} von ${stats.totalEntitlement.toStringAsFixed(0)} Tagen genommen, ${stats.remainingDays.toStringAsFixed(0)} verbleibend',
-                      style: TextStyle(fontSize: 11, color: context.infoForeground),
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 4),
+            Text(
+              'Urlaubstage pro Jahr werden im Urlaubs-Screen verwaltet.',
+              style: TextStyle(fontSize: 11, color: context.subtleText),
             ),
           ],
         ),
@@ -997,106 +1042,3 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-/// Eingabefeld für Wochenstunden mit manueller Werteingabe
-class _WeeklyHoursInput extends StatefulWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _WeeklyHoursInput({
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  State<_WeeklyHoursInput> createState() => _WeeklyHoursInputState();
-}
-
-class _WeeklyHoursInputState extends State<_WeeklyHoursInput> {
-  late TextEditingController _controller;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(
-      text: widget.value.toStringAsFixed(1).replaceAll('.', ','),
-    );
-  }
-
-  @override
-  void didUpdateWidget(_WeeklyHoursInput oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Nur aktualisieren wenn sich der Wert extern geändert hat
-    final currentText = _controller.text.replaceAll(',', '.');
-    final currentValue = double.tryParse(currentText);
-    if (currentValue == null || (currentValue - widget.value).abs() > 0.01) {
-      _controller.text = widget.value.toStringAsFixed(1).replaceAll('.', ',');
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onSubmitted(String value) {
-    final normalized = value.replaceAll(',', '.');
-    final parsed = double.tryParse(normalized);
-
-    if (parsed == null) {
-      setState(() => _errorText = 'Ungültige Zahl');
-      return;
-    }
-
-    if (parsed < 1 || parsed > 80) {
-      setState(() => _errorText = 'Wert muss zwischen 1 und 80 liegen');
-      return;
-    }
-
-    setState(() => _errorText = null);
-    widget.onChanged(parsed);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            SizedBox(
-              width: 120,
-              child: TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
-                  suffixText: 'h',
-                  isDense: true,
-                  errorText: _errorText,
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-                ],
-                textAlign: TextAlign.center,
-                onSubmitted: _onSubmitted,
-                onEditingComplete: () => _onSubmitted(_controller.text),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'pro Woche',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Eingabe bestätigen mit Enter (1-80h)',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-        ),
-      ],
-    );
-  }
-}

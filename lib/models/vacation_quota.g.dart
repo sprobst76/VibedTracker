@@ -22,13 +22,14 @@ class VacationQuotaAdapter extends TypeAdapter<VacationQuota> {
       adjustmentDays: fields[2] as double,
       note: fields[3] as String?,
       manualUsedDays: fields[4] as double,
+      annualEntitlementDays: fields[5] as double?,
     );
   }
 
   @override
   void write(BinaryWriter writer, VacationQuota obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.year)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class VacationQuotaAdapter extends TypeAdapter<VacationQuota> {
       ..writeByte(3)
       ..write(obj.note)
       ..writeByte(4)
-      ..write(obj.manualUsedDays);
+      ..write(obj.manualUsedDays)
+      ..writeByte(5)
+      ..write(obj.annualEntitlementDays);
   }
 
   @override

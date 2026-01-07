@@ -206,17 +206,21 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(
-                  'Anspruch',
-                  '${stats.totalEntitlement.toStringAsFixed(stats.totalEntitlement == stats.totalEntitlement.roundToDouble() ? 0 : 1)}',
-                  Colors.grey,
-                  subtitle: stats.carryover > 0
-                      ? '(${settings.annualVacationDays} + ${stats.carryover.toStringAsFixed(0)} Übertrag)'
-                      : null,
+                GestureDetector(
+                  onTap: () => _showAnnualEntitlementDialog(stats),
+                  child: _buildStatItem(
+                    'Anspruch',
+                    '${stats.totalEntitlement.toStringAsFixed(stats.totalEntitlement == stats.totalEntitlement.roundToDouble() ? 0 : 1)}',
+                    Colors.grey,
+                    subtitle: stats.carryover > 0
+                        ? '(${stats.annualEntitlement.toStringAsFixed(0)} + ${stats.carryover.toStringAsFixed(0)} Übertrag)'
+                        : '${stats.annualEntitlement.toStringAsFixed(0)} Tage/Jahr',
+                    showEditIcon: true,
+                  ),
                 ),
                 GestureDetector(
-                onTap: () => _showManualUsedDaysDialog(stats),
-                child: _buildStatItem(
+                  onTap: () => _showManualUsedDaysDialog(stats),
+                  child: _buildStatItem(
                   'Genommen',
                   '${stats.usedDays.toStringAsFixed(0)}',
                   Colors.orange,
@@ -391,6 +395,88 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
 
     if (result != null) {
       await quotaNotifier.setManualUsedDays(stats.year, result);
+    }
+  }
+
+  Future<void> _showAnnualEntitlementDialog(VacationStats stats) async {
+    final quotaNotifier = ref.read(vacationQuotaProvider.notifier);
+    final settings = ref.watch(settingsProvider);
+    final quota = quotaNotifier.getForYear(stats.year);
+    final hasCustomEntitlement = quota?.annualEntitlementDays != null;
+
+    final controller = TextEditingController(
+      text: stats.annualEntitlement.toStringAsFixed(0),
+    );
+
+    final result = await showDialog<double?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Urlaubsanspruch ${stats.year}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Standard aus Einstellungen: ${settings.annualVacationDays} Tage/Jahr',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Urlaubstage ${stats.year}',
+                border: const OutlineInputBorder(),
+                suffixText: 'Tage',
+                hintText: settings.annualVacationDays.toString(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasCustomEntitlement
+                  ? 'Individueller Anspruch für dieses Jahr gesetzt.'
+                  : 'Nutzt Standard aus Einstellungen.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+            if (hasCustomEntitlement) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context, -1.0), // -1 als Signal für "zurücksetzen"
+                icon: const Icon(Icons.restore, size: 16),
+                label: const Text('Auf Standard zurücksetzen'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.replaceAll(',', '.');
+              final value = double.tryParse(text);
+              Navigator.pop(context, value);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      if (result == -1.0) {
+        // Zurücksetzen auf Standard
+        await quotaNotifier.setAnnualEntitlement(stats.year, null);
+      } else {
+        await quotaNotifier.setAnnualEntitlement(stats.year, result);
+      }
     }
   }
 

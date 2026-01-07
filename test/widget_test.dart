@@ -7,6 +7,7 @@ import 'package:time_tracker/screens/settings_screen.dart';
 import 'package:time_tracker/models/settings.dart';
 import 'package:time_tracker/models/vacation_quota.dart';
 import 'package:time_tracker/models/project.dart';
+import 'package:time_tracker/models/weekly_hours_period.dart';
 import 'package:time_tracker/providers.dart';
 
 void main() {
@@ -16,6 +17,7 @@ void main() {
         settingsProvider.overrideWith((ref) => MockSettingsNotifier()),
         currentYearVacationStatsProvider.overrideWith((ref) => _mockVacationStats()),
         projectsProvider.overrideWith((ref) => MockProjectsNotifier()),
+        weeklyHoursPeriodsProvider.overrideWith((ref) => MockWeeklyHoursPeriodsNotifier()),
       ],
     );
 
@@ -29,16 +31,17 @@ void main() {
     // Prüfe Titel
     expect(find.text('Einstellungen'), findsOneWidget);
 
-    // Prüfe Arbeitszeit-Sektion (erste Karte)
-    expect(find.text('Wöchentliche Arbeitszeit (Standard)'), findsOneWidget);
+    // Prüfe Arbeitszeit-Sektion
+    expect(find.text('Wöchentliche Arbeitszeit'), findsOneWidget);
   });
 
-  testWidgets('Settings Screen zeigt Arbeitszeit-Eingabe mit korrektem Wert', (WidgetTester tester) async {
+  testWidgets('Settings Screen zeigt aktuelle Wochenstunden', (WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: [
         settingsProvider.overrideWith((ref) => MockSettingsNotifier()),
         currentYearVacationStatsProvider.overrideWith((ref) => _mockVacationStats()),
         projectsProvider.overrideWith((ref) => MockProjectsNotifier()),
+        weeklyHoursPeriodsProvider.overrideWith((ref) => MockWeeklyHoursPeriodsNotifier()),
       ],
     );
 
@@ -49,14 +52,11 @@ void main() {
       ),
     );
 
-    // Prüfe, dass TextField für Arbeitszeit vorhanden ist
-    expect(find.byType(TextField), findsWidgets);
+    // Prüfe, dass die aktuellen Stunden angezeigt werden (40h Badge)
+    expect(find.text('40h'), findsOneWidget);
 
-    // Prüfe, dass der Wert im TextField angezeigt wird (40,0 mit Komma für DE)
-    expect(find.text('40,0'), findsOneWidget);
-
-    // Prüfe, dass 'pro Woche' Label vorhanden ist
-    expect(find.text('pro Woche'), findsOneWidget);
+    // Prüfe, dass der Button zum Verwalten der Perioden vorhanden ist
+    expect(find.text('Arbeitszeit-Perioden verwalten'), findsOneWidget);
   });
 
   testWidgets('Settings Screen ist scrollbar', (WidgetTester tester) async {
@@ -65,6 +65,7 @@ void main() {
         settingsProvider.overrideWith((ref) => MockSettingsNotifier()),
         currentYearVacationStatsProvider.overrideWith((ref) => _mockVacationStats()),
         projectsProvider.overrideWith((ref) => MockProjectsNotifier()),
+        weeklyHoursPeriodsProvider.overrideWith((ref) => MockWeeklyHoursPeriodsNotifier()),
       ],
     );
 
@@ -112,7 +113,18 @@ class MockProjectsNotifier extends ProjectsNotifier {
   List<Project> get state => [];
 }
 
-/// Mock für Hive Box<Settings>
+/// Mock für WeeklyHoursPeriodsNotifier
+class MockWeeklyHoursPeriodsNotifier extends WeeklyHoursPeriodsNotifier {
+  MockWeeklyHoursPeriodsNotifier() : super(_MockWeeklyHoursBox(), 40.0);
+
+  @override
+  List<WeeklyHoursPeriod> get state => [];
+
+  @override
+  double getWeeklyHoursForDate(DateTime date) => 40.0;
+}
+
+/// Mock für Hive Box - Settings
 class _MockSettingsBox extends Fake implements Box<Settings> {
   @override
   Settings? get(dynamic key, {Settings? defaultValue}) => Settings();
@@ -124,7 +136,7 @@ class _MockSettingsBox extends Fake implements Box<Settings> {
   Future<void> put(dynamic key, Settings value) async {}
 }
 
-/// Mock für Hive Box<Project>
+/// Mock für Hive Box - Project
 class _MockProjectsBox extends Fake implements Box<Project> {
   @override
   Iterable<Project> get values => [];
@@ -134,4 +146,16 @@ class _MockProjectsBox extends Fake implements Box<Project> {
 
   @override
   Future<void> put(dynamic key, Project value) async {}
+}
+
+/// Mock für Hive Box - WeeklyHoursPeriod
+class _MockWeeklyHoursBox extends Fake implements Box<WeeklyHoursPeriod> {
+  @override
+  Iterable<WeeklyHoursPeriod> get values => [];
+
+  @override
+  Future<int> add(WeeklyHoursPeriod value) async => 0;
+
+  @override
+  Future<void> put(dynamic key, WeeklyHoursPeriod value) async {}
 }
