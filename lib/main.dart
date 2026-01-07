@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -14,9 +15,11 @@ import 'models/work_exception.dart';
 import 'models/vacation_quota.dart';
 import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
+import 'screens/auth_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers.dart';
 import 'services/secure_storage_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -139,6 +142,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    final authStatus = ref.watch(authStatusProvider);
 
     // Konvertiere AppThemeMode zu Flutter ThemeMode
     ThemeMode themeMode;
@@ -155,15 +159,168 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     }
 
     return MaterialApp(
-      title: 'TimeTracker',
+      title: 'VibedTracker',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
-      home: _isCheckingLock
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : _isLocked
-              ? LockScreen(onUnlocked: _onUnlocked)
-              : const HomeScreen(),
+      home: _buildHome(authStatus),
+    );
+  }
+
+  Widget _buildHome(AuthStatus authStatus) {
+    // Loading state
+    if (_isCheckingLock || authStatus == AuthStatus.unknown) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Web: Auth ist Pflicht
+    if (kIsWeb) {
+      if (authStatus != AuthStatus.authenticated) {
+        return _WebAuthWrapper(
+          authStatus: authStatus,
+        );
+      }
+      // Authentifiziert - zeige App
+      return const HomeScreen();
+    }
+
+    // Mobile: Bestehende Logik (Lock Screen + optional Auth)
+    if (_isLocked) {
+      return LockScreen(onUnlocked: _onUnlocked);
+    }
+    return const HomeScreen();
+  }
+}
+
+/// Web Auth Wrapper - zeigt Login oder Status-Meldung
+class _WebAuthWrapper extends ConsumerWidget {
+  final AuthStatus authStatus;
+
+  const _WebAuthWrapper({required this.authStatus});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildContent(context, ref),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, WidgetRef ref) {
+    switch (authStatus) {
+      case AuthStatus.unauthenticated:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'VibedTracker',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bitte anmelden um fortzufahren',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => _showAuthScreen(context),
+              icon: const Icon(Icons.login),
+              label: const Text('Anmelden'),
+            ),
+          ],
+        );
+
+      case AuthStatus.pendingApproval:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.hourglass_empty,
+              size: 64,
+              color: Colors.orange[700],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Warte auf Freischaltung',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Dein Account wurde registriert und wartet auf die Freischaltung durch einen Administrator.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => ref.read(authStatusProvider.notifier).refresh(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Status prüfen'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => ref.read(authStatusProvider.notifier).logout(),
+              child: const Text('Abmelden'),
+            ),
+          ],
+        );
+
+      case AuthStatus.blocked:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.block,
+              size: 64,
+              color: Colors.red[700],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Account gesperrt',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Dein Account wurde gesperrt. Bitte kontaktiere einen Administrator.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () => ref.read(authStatusProvider.notifier).logout(),
+              child: const Text('Abmelden'),
+            ),
+          ],
+        );
+
+      default:
+        return const CircularProgressIndicator();
+    }
+  }
+
+  void _showAuthScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AuthScreen(),
+        fullscreenDialog: true,
+      ),
     );
   }
 }
