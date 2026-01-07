@@ -54,11 +54,13 @@ func (r *UserRepository) Create(ctx context.Context, email, passwordHash string)
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash, created_at, updated_at
+		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash,
+		       totp_secret, totp_enabled, totp_verified_at, created_at, updated_at
 		FROM users WHERE id = $1
 	`, id).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.IsApproved, &user.IsAdmin, &user.IsBlocked,
-		&user.KeySalt, &user.KeyVerificationHash, &user.CreatedAt, &user.UpdatedAt,
+		&user.KeySalt, &user.KeyVerificationHash, &user.TOTPSecret, &user.TOTPEnabled, &user.TOTPVerifiedAt,
+		&user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -70,11 +72,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash, created_at, updated_at
+		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash,
+		       totp_secret, totp_enabled, totp_verified_at, created_at, updated_at
 		FROM users WHERE email = $1
 	`, email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.IsApproved, &user.IsAdmin, &user.IsBlocked,
-		&user.KeySalt, &user.KeyVerificationHash, &user.CreatedAt, &user.UpdatedAt,
+		&user.KeySalt, &user.KeyVerificationHash, &user.TOTPSecret, &user.TOTPEnabled, &user.TOTPVerifiedAt,
+		&user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -85,7 +89,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash, created_at, updated_at
+		SELECT id, email, password_hash, is_approved, is_admin, is_blocked, key_salt, key_verification_hash,
+		       totp_secret, totp_enabled, totp_verified_at, created_at, updated_at
 		FROM users ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -98,7 +103,8 @@ func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 		var user models.User
 		err := rows.Scan(
 			&user.ID, &user.Email, &user.PasswordHash, &user.IsApproved, &user.IsAdmin, &user.IsBlocked,
-			&user.KeySalt, &user.KeyVerificationHash, &user.CreatedAt, &user.UpdatedAt,
+			&user.KeySalt, &user.KeyVerificationHash, &user.TOTPSecret, &user.TOTPEnabled, &user.TOTPVerifiedAt,
+			&user.CreatedAt, &user.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -175,4 +181,27 @@ func (r *UserRepository) GetStats(ctx context.Context) (*models.AdminStatsRespon
 	}
 
 	return stats, nil
+}
+
+// TOTP methods
+
+func (r *UserRepository) SetTOTPSecret(ctx context.Context, id uuid.UUID, secret []byte) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE users SET totp_secret = $1, updated_at = $2 WHERE id = $3
+	`, secret, time.Now(), id)
+	return err
+}
+
+func (r *UserRepository) EnableTOTP(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE users SET totp_enabled = true, totp_verified_at = $1, updated_at = $1 WHERE id = $2
+	`, time.Now(), id)
+	return err
+}
+
+func (r *UserRepository) DisableTOTP(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_verified_at = NULL, updated_at = $1 WHERE id = $2
+	`, time.Now(), id)
+	return err
 }

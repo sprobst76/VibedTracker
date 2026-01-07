@@ -44,6 +44,7 @@ dependencies:
   excel: ^4.0.3                    # Excel-Datei-Erzeugung
   share_plus: ^10.1.4              # Teilen/Speichern von Dateien
   archive: ^3.6.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

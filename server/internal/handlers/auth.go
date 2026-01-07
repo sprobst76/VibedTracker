@@ -20,14 +20,16 @@ type AuthHandler struct {
 	users     *repository.UserRepository
 	tokens    *repository.TokenRepository
 	devices   *repository.DeviceRepository
+	totpRepo  *repository.TOTPRepository
 }
 
-func NewAuthHandler(cfg *config.Config, users *repository.UserRepository, tokens *repository.TokenRepository, devices *repository.DeviceRepository) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, users *repository.UserRepository, tokens *repository.TokenRepository, devices *repository.DeviceRepository, totpRepo *repository.TOTPRepository) *AuthHandler {
 	return &AuthHandler{
-		cfg:     cfg,
-		users:   users,
-		tokens:  tokens,
-		devices: devices,
+		cfg:      cfg,
+		users:    users,
+		tokens:   tokens,
+		devices:  devices,
+		totpRepo: totpRepo,
 	}
 }
 
@@ -112,7 +114,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	deviceID := device.ID
 
-	// Generate tokens
+	// Check if TOTP is enabled
+	if user.TOTPEnabled {
+		// Create a temporary token for TOTP validation
+		tempToken := h.totpRepo.CreateTempToken(user.ID, deviceID)
+		c.JSON(http.StatusOK, models.LoginTOTPResponse{
+			RequiresTOTP: true,
+			TempToken:    tempToken,
+		})
+		return
+	}
+
+	// Generate tokens (no TOTP required)
 	accessToken, err := middleware.GenerateAccessToken(user.ID, user.Email, user.IsAdmin, user.IsApproved, h.cfg.JWTExpiry)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})

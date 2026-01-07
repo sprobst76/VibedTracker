@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
+import '../services/api_client.dart';
 import 'auth_screen.dart';
 import 'passphrase_setup_screen.dart';
+import 'totp_setup_screen.dart';
 
 class SyncSettingsScreen extends ConsumerStatefulWidget {
   const SyncSettingsScreen({super.key});
@@ -17,10 +19,15 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
   DateTime? _lastSyncTime;
   bool _isLoadingLastSync = true;
 
+  // 2FA state
+  TOTPStatus? _totpStatus;
+  bool _isLoadingTOTP = true;
+
   @override
   void initState() {
     super.initState();
     _loadLastSyncTime();
+    _loadTOTPStatus();
   }
 
   Future<void> _loadLastSyncTime() async {
@@ -31,6 +38,29 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
         _lastSyncTime = lastSync;
         _isLoadingLastSync = false;
       });
+    }
+  }
+
+  Future<void> _loadTOTPStatus() async {
+    final authStatus = ref.read(authStatusProvider);
+    if (authStatus != AuthStatus.authenticated) {
+      setState(() => _isLoadingTOTP = false);
+      return;
+    }
+
+    try {
+      final auth = ref.read(authServiceProvider);
+      final status = await auth.getTOTPStatus();
+      if (mounted) {
+        setState(() {
+          _totpStatus = status;
+          _isLoadingTOTP = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingTOTP = false);
+      }
     }
   }
 
@@ -127,6 +157,12 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
           // Encryption Setup (only if authenticated)
           if (authStatus == AuthStatus.authenticated)
             _buildEncryptionCard(),
+
+          const SizedBox(height: 16),
+
+          // 2FA Setup (only if authenticated)
+          if (authStatus == AuthStatus.authenticated)
+            _build2FACard(),
 
           const SizedBox(height: 16),
 
@@ -389,6 +425,212 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _build2FACard() {
+    final isEnabled = _totpStatus?.enabled ?? false;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isEnabled ? Icons.security : Icons.security_outlined,
+                  size: 28,
+                  color: isEnabled ? Colors.green : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Zwei-Faktor-Authentifizierung',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        isEnabled ? 'Aktiviert' : 'Nicht eingerichtet',
+                        style: TextStyle(
+                          color: isEnabled ? Colors.green : Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (_isLoadingTOTP)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else ...[
+              if (isEnabled && _totpStatus!.remainingRecoveryCodes > 0) ...[
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.key, size: 20),
+                    const SizedBox(width: 8),
+                    Text('${_totpStatus!.remainingRecoveryCodes} Recovery-Codes verfügbar'),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (!isEnabled)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (context) => const TOTPSetupScreen(),
+                        ),
+                      );
+                      if (result == true) {
+                        _loadTOTPStatus();
+                      }
+                    },
+                    icon: const Icon(Icons.shield),
+                    label: const Text('2FA einrichten'),
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _showDisable2FADialog,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
+                    icon: const Icon(Icons.shield_outlined),
+                    label: const Text('2FA deaktivieren'),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDisable2FADialog() async {
+    final codeController = TextEditingController();
+    final passwordController = TextEditingController();
+    String? errorMessage;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('2FA deaktivieren'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gib deinen aktuellen TOTP-Code und dein Passwort ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.',
+              ),
+              const SizedBox(height: 16),
+              if (errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    errorMessage!,
+                    style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              TextField(
+                controller: codeController,
+                decoration: const InputDecoration(
+                  labelText: 'TOTP-Code',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Passwort',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                if (codeController.text.length != 6) {
+                  setDialogState(() => errorMessage = 'Bitte 6-stelligen Code eingeben');
+                  return;
+                }
+                if (passwordController.text.isEmpty) {
+                  setDialogState(() => errorMessage = 'Bitte Passwort eingeben');
+                  return;
+                }
+
+                try {
+                  final auth = ref.read(authServiceProvider);
+                  await auth.disableTOTP(codeController.text, passwordController.text);
+                  if (context.mounted) {
+                    Navigator.of(context).pop(true);
+                  }
+                } on ApiException catch (e) {
+                  setDialogState(() => errorMessage = e.message);
+                } catch (e) {
+                  setDialogState(() => errorMessage = 'Fehler: $e');
+                }
+              },
+              child: const Text('Deaktivieren'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    codeController.dispose();
+    passwordController.dispose();
+
+    if (confirmed == true) {
+      _loadTOTPStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('2FA wurde deaktiviert'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildInfoCard() {

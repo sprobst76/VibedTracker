@@ -26,6 +26,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   final _registerPasswordController = TextEditingController();
   final _registerConfirmPasswordController = TextEditingController();
 
+  // TOTP
+  final _totpCodeController = TextEditingController();
+  String? _pendingTOTPToken;
+  bool _showTOTPInput = false;
+  bool _useRecoveryCode = false;
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -52,6 +58,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _registerEmailController.dispose();
     _registerPasswordController.dispose();
     _registerConfirmPasswordController.dispose();
+    _totpCodeController.dispose();
     super.dispose();
   }
 
@@ -64,12 +71,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     });
 
     try {
-      await ref.read(authStatusProvider.notifier).login(
+      final result = await ref.read(authStatusProvider.notifier).login(
             _loginEmailController.text.trim(),
             _loginPasswordController.text,
           );
 
       if (!mounted) return;
+
+      // Check if TOTP is required
+      if (result.requiresTOTP) {
+        setState(() {
+          _pendingTOTPToken = result.tempToken;
+          _showTOTPInput = true;
+          _isLoading = false;
+        });
+        return;
+      }
 
       final status = ref.read(authStatusProvider);
       if (status == AuthStatus.authenticated) {
@@ -96,6 +113,69 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _validateTOTP() async {
+    if (_totpCodeController.text.isEmpty) {
+      setState(() => _errorMessage = 'Bitte Code eingeben');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      if (_useRecoveryCode) {
+        await ref.read(authStatusProvider.notifier).validateRecoveryCode(
+              _pendingTOTPToken!,
+              _totpCodeController.text.trim(),
+            );
+      } else {
+        await ref.read(authStatusProvider.notifier).validateTOTP(
+              _pendingTOTPToken!,
+              _totpCodeController.text.trim(),
+            );
+      }
+
+      if (!mounted) return;
+
+      final status = ref.read(authStatusProvider);
+      if (status == AuthStatus.authenticated) {
+        Navigator.of(context).pop(true);
+      } else if (status == AuthStatus.pendingApproval) {
+        setState(() {
+          _errorMessage = 'Account wartet auf Freischaltung durch Admin';
+        });
+      } else if (status == AuthStatus.blocked) {
+        setState(() {
+          _errorMessage = 'Account wurde gesperrt';
+        });
+      }
+    } on ApiException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Verifizierung fehlgeschlagen: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _cancelTOTP() {
+    setState(() {
+      _showTOTPInput = false;
+      _pendingTOTPToken = null;
+      _useRecoveryCode = false;
+      _totpCodeController.clear();
+      _errorMessage = null;
+    });
   }
 
   Future<void> _register() async {
@@ -177,6 +257,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Show TOTP input if required
+    if (_showTOTPInput) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Zwei-Faktor-Authentifizierung'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _cancelTOTP,
+          ),
+        ),
+        body: _buildTOTPInput(),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cloud Sync'),
@@ -193,6 +287,107 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         children: [
           _buildLoginTab(),
           _buildRegisterTab(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTOTPInput() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 24),
+          Icon(
+            _useRecoveryCode ? Icons.key : Icons.security,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            _useRecoveryCode
+                ? 'Recovery-Code eingeben'
+                : 'Authenticator-Code eingeben',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _useRecoveryCode
+                ? 'Gib einen deiner Wiederherstellungscodes ein'
+                : 'Gib den 6-stelligen Code aus deiner Authenticator-App ein',
+            style: const TextStyle(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          if (_errorMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          TextField(
+            controller: _totpCodeController,
+            decoration: InputDecoration(
+              labelText: _useRecoveryCode ? 'Recovery-Code' : 'Code',
+              prefixIcon: Icon(_useRecoveryCode ? Icons.key : Icons.pin),
+              border: const OutlineInputBorder(),
+            ),
+            keyboardType: _useRecoveryCode
+                ? TextInputType.text
+                : TextInputType.number,
+            textInputAction: TextInputAction.done,
+            enabled: !_isLoading,
+            autofocus: true,
+            maxLength: _useRecoveryCode ? null : 6,
+            onSubmitted: (_) => _validateTOTP(),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _isLoading ? null : _validateTOTP,
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Verifizieren'),
+          ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: _isLoading
+                ? null
+                : () {
+                    setState(() {
+                      _useRecoveryCode = !_useRecoveryCode;
+                      _totpCodeController.clear();
+                      _errorMessage = null;
+                    });
+                  },
+            child: Text(
+              _useRecoveryCode
+                  ? 'Authenticator-Code verwenden'
+                  : 'Recovery-Code verwenden',
+            ),
+          ),
         ],
       ),
     );

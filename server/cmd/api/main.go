@@ -38,12 +38,14 @@ func main() {
 	tokenRepo := repository.NewTokenRepository(db.Pool)
 	deviceRepo := repository.NewDeviceRepository(db.Pool)
 	syncRepo := repository.NewSyncRepository(db.Pool)
+	totpRepo := repository.NewTOTPRepository(db.Pool)
 
 	// Create handlers
-	authHandler := handlers.NewAuthHandler(cfg, userRepo, tokenRepo, deviceRepo)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo, tokenRepo, deviceRepo, totpRepo)
 	syncHandler := handlers.NewSyncHandler(syncRepo, deviceRepo)
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, tokenRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, tokenRepo)
+	totpHandler := handlers.NewTOTPHandler(cfg, userRepo, totpRepo, tokenRepo, deviceRepo)
 
 	// Create initial admin if configured
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -52,7 +54,7 @@ func main() {
 	}
 	cancel()
 
-	// Cleanup expired tokens periodically
+	// Cleanup expired tokens and TOTP attempts periodically
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
@@ -60,6 +62,10 @@ func main() {
 			if err := tokenRepo.CleanupExpired(ctx); err != nil {
 				log.Printf("Failed to cleanup expired tokens: %v", err)
 			}
+			if err := totpRepo.CleanupOldAttempts(ctx); err != nil {
+				log.Printf("Failed to cleanup old TOTP attempts: %v", err)
+			}
+			totpRepo.CleanupExpiredTempTokens()
 			cancel()
 		}
 	}()
@@ -96,6 +102,9 @@ func main() {
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.Refresh)
+			// TOTP validation during login (public, uses temp token)
+			auth.POST("/totp/validate", totpHandler.Validate)
+			auth.POST("/recovery/validate", totpHandler.ValidateRecovery)
 		}
 
 		// Protected routes (require JWT)
@@ -105,6 +114,16 @@ func main() {
 			// User profile
 			protected.GET("/me", authHandler.Me)
 			protected.POST("/key", authHandler.SetKey)
+
+			// TOTP management (protected)
+			totp := protected.Group("/totp")
+			{
+				totp.GET("/status", totpHandler.GetStatus)
+				totp.POST("/setup", totpHandler.Setup)
+				totp.POST("/verify", totpHandler.Verify)
+				totp.POST("/disable", totpHandler.Disable)
+				totp.GET("/recovery-codes", totpHandler.GetRecoveryCodes)
+			}
 
 			// Sync routes (require approval)
 			sync := protected.Group("/sync")

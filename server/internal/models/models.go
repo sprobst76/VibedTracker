@@ -16,6 +16,9 @@ type User struct {
 	IsBlocked           bool       `json:"is_blocked"`
 	KeySalt             []byte     `json:"-"`
 	KeyVerificationHash []byte     `json:"-"`
+	TOTPSecret          []byte     `json:"-"`
+	TOTPEnabled         bool       `json:"totp_enabled"`
+	TOTPVerifiedAt      *time.Time `json:"-"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 }
@@ -161,4 +164,67 @@ type AdminStatsResponse struct {
 type SetKeyRequest struct {
 	KeySalt             string `json:"key_salt" binding:"required"`              // Base64
 	KeyVerificationHash string `json:"key_verification_hash" binding:"required"` // Base64
+}
+
+// TOTP related models
+
+// RecoveryCode represents a one-time recovery code for 2FA
+type RecoveryCode struct {
+	ID        uuid.UUID  `json:"id"`
+	UserID    uuid.UUID  `json:"user_id"`
+	CodeHash  string     `json:"-"`
+	Used      bool       `json:"used"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// TOTPAttempt tracks TOTP validation attempts for rate limiting
+type TOTPAttempt struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	AttemptedAt time.Time `json:"attempted_at"`
+	Success     bool      `json:"success"`
+}
+
+// TOTP Request/Response types
+
+// TOTPSetupResponse returns QR code data for TOTP setup
+type TOTPSetupResponse struct {
+	Secret    string `json:"secret"`
+	QRCodeURL string `json:"qr_code_url"`
+	Issuer    string `json:"issuer"`
+}
+
+// TOTPVerifyRequest for verifying initial TOTP setup
+type TOTPVerifyRequest struct {
+	Code string `json:"code" binding:"required,len=6"`
+}
+
+// TOTPValidateRequest for validating TOTP during login
+type TOTPValidateRequest struct {
+	TempToken string `json:"temp_token" binding:"required"`
+	Code      string `json:"code" binding:"required,len=6"`
+}
+
+// TOTPDisableRequest for disabling TOTP
+type TOTPDisableRequest struct {
+	Code     string `json:"code" binding:"required,len=6"`
+	Password string `json:"password" binding:"required"`
+}
+
+// LoginTOTPResponse when TOTP is required
+type LoginTOTPResponse struct {
+	RequiresTOTP bool   `json:"requires_totp"`
+	TempToken    string `json:"temp_token"`
+}
+
+// RecoveryCodesResponse returns newly generated recovery codes
+type RecoveryCodesResponse struct {
+	Codes []string `json:"codes"`
+}
+
+// RecoveryValidateRequest for login with recovery code
+type RecoveryValidateRequest struct {
+	TempToken string `json:"temp_token" binding:"required"`
+	Code      string `json:"code" binding:"required"`
 }

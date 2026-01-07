@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api_client.dart';
+import 'platform_storage.dart';
 
 /// Auth-Status eines Users
 enum AuthStatus {
@@ -19,6 +19,7 @@ class User {
   final bool isApproved;
   final bool isAdmin;
   final bool isBlocked;
+  final bool totpEnabled;
   final DateTime createdAt;
 
   User({
@@ -27,6 +28,7 @@ class User {
     required this.isApproved,
     required this.isAdmin,
     required this.isBlocked,
+    required this.totpEnabled,
     required this.createdAt,
   });
 
@@ -37,6 +39,7 @@ class User {
       isApproved: json['is_approved'] as bool? ?? false,
       isAdmin: json['is_admin'] as bool? ?? false,
       isBlocked: json['is_blocked'] as bool? ?? false,
+      totpEnabled: json['totp_enabled'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -48,10 +51,68 @@ class User {
   }
 }
 
+/// Result of a login attempt
+class LoginResult {
+  final bool requiresTOTP;
+  final String? tempToken;
+  final User? user;
+
+  LoginResult._({
+    required this.requiresTOTP,
+    this.tempToken,
+    this.user,
+  });
+
+  factory LoginResult.success(User user) =>
+      LoginResult._(requiresTOTP: false, user: user);
+
+  factory LoginResult.requiresTOTP(String tempToken) =>
+      LoginResult._(requiresTOTP: true, tempToken: tempToken);
+}
+
+/// TOTP setup data
+class TOTPSetupData {
+  final String secret;
+  final String qrCodeUrl;
+  final String issuer;
+
+  TOTPSetupData({
+    required this.secret,
+    required this.qrCodeUrl,
+    required this.issuer,
+  });
+
+  factory TOTPSetupData.fromJson(Map<String, dynamic> json) {
+    return TOTPSetupData(
+      secret: json['secret'] as String,
+      qrCodeUrl: json['qr_code_url'] as String,
+      issuer: json['issuer'] as String,
+    );
+  }
+}
+
+/// TOTP status
+class TOTPStatus {
+  final bool enabled;
+  final int remainingRecoveryCodes;
+
+  TOTPStatus({
+    required this.enabled,
+    required this.remainingRecoveryCodes,
+  });
+
+  factory TOTPStatus.fromJson(Map<String, dynamic> json) {
+    return TOTPStatus(
+      enabled: json['totp_enabled'] as bool? ?? false,
+      remainingRecoveryCodes: json['remaining_recovery_codes'] as int? ?? 0,
+    );
+  }
+}
+
 /// Service für Authentifizierung
 class AuthService {
   final ApiClient _api;
-  final FlutterSecureStorage _storage;
+  final PlatformStorage _storage;
 
   // Storage Keys
   static const _keyAccessToken = 'auth_access_token';
@@ -62,12 +123,9 @@ class AuthService {
   User? _currentUser;
   String? _deviceId;
 
-  AuthService({ApiClient? api, FlutterSecureStorage? storage})
+  AuthService({ApiClient? api, PlatformStorage? storage})
       : _api = api ?? ApiClient(),
-        _storage = storage ?? const FlutterSecureStorage(
-          aOptions: AndroidOptions(encryptedSharedPreferences: true),
-          iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
-        ) {
+        _storage = storage ?? createPlatformStorage() {
     // Token-Refresh Callback
     _api.onTokenRefreshNeeded = _refreshToken;
     _api.onAuthFailure = _handleAuthFailure;
@@ -135,15 +193,22 @@ class AuthService {
     // Nach Registrierung muss User einloggen
   }
 
-  /// Login
-  Future<User> login(String email, String password, {String? deviceName}) async {
+  /// Login - returns LoginResult to handle TOTP requirement
+  Future<LoginResult> login(String email, String password, {String? deviceName}) async {
     final response = await _api.postPublic('/api/v1/auth/login', {
       'email': email,
       'password': password,
       'device_name': deviceName ?? 'VibedTracker App',
-      'device_type': 'android', // TODO: Platform detection
+      'device_type': kIsWeb ? 'web' : 'android', // Platform detection
     });
 
+    // Check if TOTP is required
+    if (response['requires_totp'] == true) {
+      final tempToken = response['temp_token'] as String;
+      return LoginResult.requiresTOTP(tempToken);
+    }
+
+    // Normal login success
     final accessToken = response['access_token'] as String;
     final refreshToken = response['refresh_token'] as String;
     final user = User.fromJson(response['user'] as Map<String, dynamic>);
@@ -156,7 +221,96 @@ class AuthService {
     // Persistent speichern
     await _saveAuthState(accessToken, refreshToken, user);
 
+    return LoginResult.success(user);
+  }
+
+  /// Validate TOTP code during login
+  Future<User> validateTOTP(String tempToken, String code) async {
+    final response = await _api.postPublic('/api/v1/auth/totp/validate', {
+      'temp_token': tempToken,
+      'code': code,
+    });
+
+    final accessToken = response['access_token'] as String;
+    final refreshToken = response['refresh_token'] as String;
+    final user = User.fromJson(response['user'] as Map<String, dynamic>);
+    _deviceId = response['device_id'] as String?;
+
+    _api.setTokens(accessToken: accessToken, refreshToken: refreshToken);
+    _currentUser = user;
+
+    await _saveAuthState(accessToken, refreshToken, user);
+
     return user;
+  }
+
+  /// Validate recovery code during login
+  Future<User> validateRecoveryCode(String tempToken, String code) async {
+    final response = await _api.postPublic('/api/v1/auth/recovery/validate', {
+      'temp_token': tempToken,
+      'code': code,
+    });
+
+    final accessToken = response['access_token'] as String;
+    final refreshToken = response['refresh_token'] as String;
+    final user = User.fromJson(response['user'] as Map<String, dynamic>);
+    _deviceId = response['device_id'] as String?;
+
+    _api.setTokens(accessToken: accessToken, refreshToken: refreshToken);
+    _currentUser = user;
+
+    await _saveAuthState(accessToken, refreshToken, user);
+
+    return user;
+  }
+
+  // TOTP Management Methods
+
+  /// Get TOTP status
+  Future<TOTPStatus> getTOTPStatus() async {
+    final response = await _api.get('/api/v1/totp/status');
+    return TOTPStatus.fromJson(response);
+  }
+
+  /// Start TOTP setup - returns setup data with QR code
+  Future<TOTPSetupData> setupTOTP() async {
+    final response = await _api.post('/api/v1/totp/setup');
+    return TOTPSetupData.fromJson(response);
+  }
+
+  /// Verify TOTP setup with first code - returns recovery codes
+  Future<List<String>> verifyTOTPSetup(String code) async {
+    final response = await _api.post('/api/v1/totp/verify', body: {
+      'code': code,
+    });
+
+    final codes = (response['recovery_codes'] as List<dynamic>)
+        .map((e) => e as String)
+        .toList();
+
+    // Refresh user to get updated totp_enabled status
+    await _fetchCurrentUser();
+
+    return codes;
+  }
+
+  /// Disable TOTP
+  Future<void> disableTOTP(String code, String password) async {
+    await _api.post('/api/v1/totp/disable', body: {
+      'code': code,
+      'password': password,
+    });
+
+    // Refresh user
+    await _fetchCurrentUser();
+  }
+
+  /// Generate new recovery codes
+  Future<List<String>> generateRecoveryCodes() async {
+    final response = await _api.get('/api/v1/totp/recovery-codes');
+    return (response['codes'] as List<dynamic>)
+        .map((e) => e as String)
+        .toList();
   }
 
   /// Logout
@@ -225,10 +379,11 @@ class AuthService {
       'is_approved': user.isApproved,
       'is_admin': user.isAdmin,
       'is_blocked': user.isBlocked,
+      'totp_enabled': user.totpEnabled,
       'created_at': user.createdAt.toIso8601String(),
     }));
     if (_deviceId != null) {
-      await _storage.write(key: _keyDeviceId, value: _deviceId);
+      await _storage.write(key: _keyDeviceId, value: _deviceId!);
     }
   }
 

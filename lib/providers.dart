@@ -797,9 +797,27 @@ class AuthStatusNotifier extends StateNotifier<AuthStatus> {
     state = await _auth.initialize();
   }
 
-  Future<void> login(String email, String password, {String? deviceName}) async {
-    await _auth.login(email, password, deviceName: deviceName);
+  /// Login - returns LoginResult to handle TOTP requirement
+  Future<LoginResult> login(String email, String password, {String? deviceName}) async {
+    final result = await _auth.login(email, password, deviceName: deviceName);
+    if (!result.requiresTOTP) {
+      state = _auth.status;
+    }
+    return result;
+  }
+
+  /// Validate TOTP code
+  Future<User> validateTOTP(String tempToken, String code) async {
+    final user = await _auth.validateTOTP(tempToken, code);
     state = _auth.status;
+    return user;
+  }
+
+  /// Validate recovery code
+  Future<User> validateRecoveryCode(String tempToken, String code) async {
+    final user = await _auth.validateRecoveryCode(tempToken, code);
+    state = _auth.status;
+    return user;
   }
 
   Future<void> logout() async {
