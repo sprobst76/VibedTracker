@@ -6,7 +6,7 @@ version: '3.8'
 networks:
   ai-lab:
     external: true
-    name: ailab_ai-lab
+    name: ai-lab_ai-lab
 
 services:
   api:
