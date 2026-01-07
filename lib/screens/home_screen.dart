@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,6 +19,7 @@ import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../services/location_tracking_service.dart';
 import 'calendar_overview_screen.dart';
+import '../widgets/responsive_shell.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -64,18 +66,21 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     });
 
     try {
-      await _reminderService.init();
-      await _geofenceNotificationService.init();
-      // Pending Einsprüche verarbeiten (aus Background-Aktionen)
-      final objectionCount =
-          await _geofenceNotificationService.processPendingObjections();
-      if (objectionCount > 0) {
-        ref.invalidate(workListProvider);
+      // Web: Skip platform-specific features
+      if (!kIsWeb) {
+        await _reminderService.init();
+        await _geofenceNotificationService.init();
+        // Pending Einsprüche verarbeiten (aus Background-Aktionen)
+        final objectionCount =
+            await _geofenceNotificationService.processPendingObjections();
+        if (objectionCount > 0) {
+          ref.invalidate(workListProvider);
+        }
+        await _syncPendingEvents();
+        await _initializeGeofence();
+        await _setupReminders();
       }
-      await _syncPendingEvents();
-      await _initializeGeofence();
       await _loadMissingDays();
-      await _setupReminders();
       setState(() => _isInitializing = false);
     } catch (e) {
       setState(() {
@@ -192,10 +197,59 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     final running = last != null && last.stop == null;
     final activePause = _getActivePause(last);
     final isPaused = activePause != null;
+    final isWideScreen = MediaQuery.of(context).size.width >= 800;
 
+    // Content (shared between web and mobile)
+    final content = RefreshIndicator(
+      onRefresh: kIsWeb ? () async {} : _syncPendingEvents,
+      child: ListView(
+        padding: EdgeInsets.all(kIsWeb && isWideScreen ? 24 : 16),
+        children: [
+          // Web: Cards in responsive grid
+          if (kIsWeb && isWideScreen) ...[
+            _buildWebDashboard(running, isPaused, last, activePause, entries),
+          ] else ...[
+            // Mobile: Vertical layout
+            _buildStatusCard(running, isPaused, last),
+            const SizedBox(height: 16),
+            if (_missingDays.isNotEmpty) ...[
+              _buildMissingDaysCard(),
+              const SizedBox(height: 16),
+            ],
+            _buildButtonRow(running, isPaused, last, activePause),
+            const SizedBox(height: 16),
+            if (running && last != null && last.pauses.isNotEmpty)
+              _buildPauseCard(last, activePause),
+            // Geofence Status (nur Mobile)
+            if (!kIsWeb && _geofenceStatus != null) ...[
+              const SizedBox(height: 16),
+              _buildGeofenceInfo(),
+            ],
+            if (_initError != null) _buildErrorCard(),
+            const SizedBox(height: 16),
+            _buildRecentEntries(entries),
+          ],
+        ],
+      ),
+    );
+
+    // Web: Use ResponsiveShell
+    if (kIsWeb && isWideScreen) {
+      return ResponsiveShell(
+        title: 'Dashboard',
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _openEntryEditor(null),
+          icon: const Icon(Icons.add),
+          label: const Text('Neuer Eintrag'),
+        ),
+        child: content,
+      );
+    }
+
+    // Mobile: Standard Scaffold
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TimeTracker'),
+        title: const Text('VibedTracker'),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
@@ -229,50 +283,162 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _syncPendingEvents,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Status Card
-            _buildStatusCard(running, isPaused, last),
-            const SizedBox(height: 16),
-
-            // Missing Days Warning
-            if (_missingDays.isNotEmpty) ...[
-              _buildMissingDaysCard(),
-              const SizedBox(height: 16),
-            ],
-
-            // Buttons
-            _buildButtonRow(running, isPaused, last, activePause),
-            const SizedBox(height: 16),
-
-            // Pause Info (wenn aktive Pause oder Pausen vorhanden)
-            // ignore: unnecessary_null_comparison
-            if (running && last != null && last.pauses.isNotEmpty)
-              _buildPauseCard(last, activePause),
-
-            // Geofence Status
-            if (_geofenceStatus != null) ...[
-              const SizedBox(height: 16),
-              _buildGeofenceInfo(),
-            ],
-
-            // Error Display
-            if (_initError != null) _buildErrorCard(),
-
-            // Recent Entries
-            const SizedBox(height: 16),
-            _buildRecentEntries(entries),
-          ],
-        ),
-      ),
+      body: content,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEntryEditor(null),
         icon: const Icon(Icons.add),
         label: const Text('Neuer Eintrag'),
       ),
+    );
+  }
+
+  /// Web Dashboard Layout mit Grid
+  Widget _buildWebDashboard(
+    bool running,
+    bool isPaused,
+    WorkEntry? last,
+    Pause? activePause,
+    List<WorkEntry> entries,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top Row: Status + Actions
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Status Card (wider)
+            Expanded(
+              flex: 2,
+              child: _buildStatusCard(running, isPaused, last),
+            ),
+            const SizedBox(width: 16),
+            // Action Buttons
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Aktionen',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildWebActionButtons(running, isPaused, last, activePause),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Missing Days Warning
+        if (_missingDays.isNotEmpty) ...[
+          _buildMissingDaysCard(),
+          const SizedBox(height: 16),
+        ],
+
+        // Pause Info
+        if (running && last != null && last.pauses.isNotEmpty) ...[
+          _buildPauseCard(last, activePause),
+          const SizedBox(height: 16),
+        ],
+
+        // Error Display
+        if (_initError != null) _buildErrorCard(),
+
+        // Recent Entries
+        _buildRecentEntries(entries),
+      ],
+    );
+  }
+
+  /// Web-optimierte Action Buttons
+  Widget _buildWebActionButtons(
+    bool running,
+    bool isPaused,
+    WorkEntry? last,
+    Pause? activePause,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final settings = ref.read(settingsProvider);
+
+    if (!running) {
+      return FilledButton.icon(
+        onPressed: _isInitializing
+            ? null
+            : () async {
+                final now = DateTime.now();
+                final box = Hive.box<WorkEntry>('work');
+                final entry = WorkEntry(start: now);
+                await box.add(entry);
+                // GPS-Tracking nur auf Mobile
+                if (!kIsWeb && settings.enableLocationTracking) {
+                  await _locationService.startTracking(entry.key.toString());
+                }
+                ref.invalidate(workListProvider);
+                await _updateStatus();
+              },
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Arbeit starten'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: colorScheme.primary,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!isPaused)
+          OutlinedButton.icon(
+            onPressed: () => _startPause(last!),
+            icon: const Icon(Icons.pause),
+            label: const Text('Pause'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          )
+        else
+          FilledButton.icon(
+            onPressed: () => _endPause(last!, activePause!),
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Pause beenden'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              backgroundColor: Colors.orange,
+            ),
+          ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: () async {
+            final now = DateTime.now();
+            // Aktive Pause beenden falls vorhanden
+            if (activePause != null) {
+              activePause.end = now;
+            }
+            last!.stop = now;
+            await last.save();
+            // GPS-Tracking nur auf Mobile
+            if (!kIsWeb && settings.enableLocationTracking) {
+              await _locationService.stopTracking();
+            }
+            ref.invalidate(workListProvider);
+            await _updateStatus();
+          },
+          icon: const Icon(Icons.stop),
+          label: const Text('Arbeit beenden'),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            backgroundColor: colorScheme.error,
+          ),
+        ),
+      ],
     );
   }
 

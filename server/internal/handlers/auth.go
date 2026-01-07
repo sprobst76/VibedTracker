@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Normalize email to lowercase
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
 	// Hash password
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -52,7 +56,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.users.Create(c.Request.Context(), req.Email, string(hash))
+	user, err := h.users.Create(c.Request.Context(), email, string(hash))
 	if err != nil {
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
@@ -75,7 +79,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := h.users.GetByEmail(c.Request.Context(), req.Email)
+	// Normalize email to lowercase
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	user, err := h.users.GetByEmail(c.Request.Context(), email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
