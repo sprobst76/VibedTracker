@@ -263,7 +263,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
       text: stats.manualDays > 0 ? stats.manualDays.toStringAsFixed(0) : '',
     );
 
-    final result = await showDialog<Map<String, double?>?>(
+    final result = await showDialog<_VacationEditResult?>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Urlaub $year bearbeiten'),
@@ -369,11 +369,11 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
             onPressed: () {
               final entitlement = double.tryParse(entitlementController.text);
               final manualDays = double.tryParse(manualDaysController.text) ?? 0.0;
-              Navigator.pop(context, {
-                'entitlement': entitlement,
-                'manualDays': manualDays,
-                'resetEntitlement': entitlement?.toInt() == defaultDays,
-              });
+              Navigator.pop(context, _VacationEditResult(
+                entitlement: entitlement,
+                manualDays: manualDays,
+                resetEntitlement: entitlement?.toInt() == defaultDays,
+              ));
             },
             child: const Text('Speichern'),
           ),
@@ -382,16 +382,25 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     );
 
     if (result != null) {
-      final double? entitlement = result['entitlement'];
-      final double manualDays = result['manualDays'] ?? 0.0;
-      final resetEntitlement = result['resetEntitlement'] as bool? ?? false;
-
-      if (resetEntitlement) {
+      if (result.resetEntitlement) {
         await quotaNotifier.setAnnualEntitlement(year, null);
-      } else if (entitlement != null) {
-        await quotaNotifier.setAnnualEntitlement(year, entitlement);
+      } else if (result.entitlement != null) {
+        await quotaNotifier.setAnnualEntitlement(year, result.entitlement!);
       }
-      await quotaNotifier.setManualUsedDays(year, manualDays);
+      await quotaNotifier.setManualUsedDays(year, result.manualDays);
     }
   }
+}
+
+/// Helper class for vacation edit dialog result
+class _VacationEditResult {
+  final double? entitlement;
+  final double manualDays;
+  final bool resetEntitlement;
+
+  _VacationEditResult({
+    this.entitlement,
+    required this.manualDays,
+    required this.resetEntitlement,
+  });
 }

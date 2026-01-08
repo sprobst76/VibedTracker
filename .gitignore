@@ -43,3 +43,7 @@ app.*.map.json
 # Android module build artifacts
 /android/**/build
 app-release.apk
+
+# Android signing
+android/key.properties
+android/app/keys/

@@ -90,7 +90,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
       final status = ref.read(authStatusProvider);
       if (status == AuthStatus.authenticated) {
-        Navigator.of(context).pop(true);
+        // Nur pop wenn nicht Root-Screen (Web zeigt automatisch Home)
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
       } else if (status == AuthStatus.pendingApproval) {
         setState(() {
           _errorMessage = 'Account wartet auf Freischaltung durch Admin';
@@ -143,7 +146,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
       final status = ref.read(authStatusProvider);
       if (status == AuthStatus.authenticated) {
-        Navigator.of(context).pop(true);
+        // Nur pop wenn nicht Root-Screen (Web zeigt automatisch Home)
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        }
       } else if (status == AuthStatus.pendingApproval) {
         setState(() {
           _errorMessage = 'Account wartet auf Freischaltung durch Admin';
@@ -273,7 +279,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cloud Sync'),
+        title: const Text('VibedTracker'),
+        automaticallyImplyLeading: Navigator.of(context).canPop(),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -396,101 +403,105 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   Widget _buildLoginTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _loginFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            Icon(
-              Icons.cloud_sync,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Mit Cloud-Account anmelden',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Synchronisiere deine Arbeitszeiten sicher zwischen Geräten',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            if (_errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red.shade700),
+      child: AutofillGroup(
+        child: Form(
+          key: _loginFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 24),
+              Icon(
+                Icons.cloud_sync,
+                size: 80,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Mit Cloud-Account anmelden',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Synchronisiere deine Arbeitszeiten sicher zwischen Geräten',
+                style: TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 16),
+              ],
+              TextFormField(
+                controller: _loginEmailController,
+                decoration: const InputDecoration(
+                  labelText: 'E-Mail',
+                  prefixIcon: Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email, AutofillHints.username],
+                validator: _validateEmail,
+                enabled: !_isLoading,
               ),
               const SizedBox(height: 16),
-            ],
-            TextFormField(
-              controller: _loginEmailController,
-              decoration: const InputDecoration(
-                labelText: 'E-Mail',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: _validateEmail,
-              enabled: !_isLoading,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _loginPasswordController,
-              decoration: InputDecoration(
-                labelText: 'Passwort',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+              TextFormField(
+                controller: _loginPasswordController,
+                decoration: InputDecoration(
+                  labelText: 'Passwort',
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
                   ),
-                  onPressed: () {
-                    setState(() => _obscurePassword = !_obscurePassword);
-                  },
                 ),
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                validator: _validatePassword,
+                enabled: !_isLoading,
+                onFieldSubmitted: (_) => _login(),
               ),
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.done,
-              validator: _validatePassword,
-              enabled: !_isLoading,
-              onFieldSubmitted: (_) => _login(),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isLoading ? null : _login,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Anmelden'),
-            ),
-          ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isLoading ? null : _login,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Anmelden'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -499,149 +510,154 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   Widget _buildRegisterTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _registerFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            Icon(
-              Icons.person_add,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Neuen Account erstellen',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Nach der Registrierung muss ein Admin deinen Account freischalten',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            if (_successMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle_outline,
-                        color: Colors.green.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _successMessage!,
-                        style: TextStyle(color: Colors.green.shade700),
+      child: AutofillGroup(
+        child: Form(
+          key: _registerFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 24),
+              Icon(
+                Icons.person_add,
+                size: 80,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Neuen Account erstellen',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Nach der Registrierung muss ein Admin deinen Account freischalten',
+                style: TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              if (_successMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _successMessage!,
+                          style: TextStyle(color: Colors.green.shade700),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 16),
+              ],
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextFormField(
+                controller: _registerEmailController,
+                decoration: const InputDecoration(
+                  labelText: 'E-Mail',
+                  prefixIcon: Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email, AutofillHints.username],
+                validator: _validateEmail,
+                enabled: !_isLoading,
               ),
               const SizedBox(height: 16),
-            ],
-            if (_errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red.shade700),
-                      ),
+              TextFormField(
+                controller: _registerPasswordController,
+                decoration: InputDecoration(
+                  labelText: 'Passwort',
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
-                  ],
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
+                  ),
                 ),
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.newPassword],
+                validator: _validatePassword,
+                enabled: !_isLoading,
               ),
               const SizedBox(height: 16),
+              TextFormField(
+                controller: _registerConfirmPasswordController,
+                decoration: InputDecoration(
+                  labelText: 'Passwort bestätigen',
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(
+                          () => _obscureConfirmPassword = !_obscureConfirmPassword);
+                    },
+                  ),
+                ),
+                obscureText: _obscureConfirmPassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.newPassword],
+                validator: _validateConfirmPassword,
+                enabled: !_isLoading,
+                onFieldSubmitted: (_) => _register(),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isLoading ? null : _register,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Registrieren'),
+              ),
             ],
-            TextFormField(
-              controller: _registerEmailController,
-              decoration: const InputDecoration(
-                labelText: 'E-Mail',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: _validateEmail,
-              enabled: !_isLoading,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _registerPasswordController,
-              decoration: InputDecoration(
-                labelText: 'Passwort',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () {
-                    setState(() => _obscurePassword = !_obscurePassword);
-                  },
-                ),
-              ),
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.next,
-              validator: _validatePassword,
-              enabled: !_isLoading,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _registerConfirmPasswordController,
-              decoration: InputDecoration(
-                labelText: 'Passwort bestätigen',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureConfirmPassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () {
-                    setState(
-                        () => _obscureConfirmPassword = !_obscureConfirmPassword);
-                  },
-                ),
-              ),
-              obscureText: _obscureConfirmPassword,
-              textInputAction: TextInputAction.done,
-              validator: _validateConfirmPassword,
-              enabled: !_isLoading,
-              onFieldSubmitted: (_) => _register(),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isLoading ? null : _register,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Registrieren'),
-            ),
-          ],
+          ),
         ),
       ),
     );

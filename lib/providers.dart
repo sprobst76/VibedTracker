@@ -96,8 +96,10 @@ class SettingsNotifier extends StateNotifier<Settings> {
       current.add(weekday);
     }
     current.sort();
-    state = state..nonWorkingWeekdays = current;
+    state.nonWorkingWeekdays = current;
     state.save();
+    // Force Riverpod to detect state change by re-fetching from box
+    state = box.get('prefs')!;
   }
 
   void updateAnnualVacationDays(int days) {
@@ -779,6 +781,9 @@ final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
   final encryption = ref.watch(encryptionServiceProvider);
   return CloudSyncService(auth: auth, encryption: encryption);
 });
+
+// Alias for easier access
+final syncServiceProvider = cloudSyncServiceProvider;
 
 // Auth Status Provider
 final authStatusProvider = StateNotifierProvider<AuthStatusNotifier, AuthStatus>((ref) {

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anmelden - VibedTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81","950":"#1e1b4b"}
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .htmx-request .loading { display: inline-flex !important; }
+        .htmx-request .ready { display: none !important; }
+        .loading { display: none; }
+
+        /* Smooth dark mode transition */
+        html { transition: background-color 0.3s, color 0.3s; }
+
+        /* Gradient background */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        }
+    </style>
+    <script>
+        // Check system preference and apply dark mode
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            document.documentElement.classList.toggle('dark', e.matches);
+        });
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+    <div class="min-h-full flex">
+        <!-- Left side - Branding -->
+        <div class="hidden lg:flex lg:w-1/2 gradient-bg items-center justify-center p-12">
+            <div class="max-w-md text-white">
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold">VibedTracker</span>
+                </div>
+                <h1 class="text-4xl font-bold mb-4">Arbeitszeit einfach erfassen</h1>
+                <p class="text-white/80 text-lg">
+                    Automatische Zeiterfassung mit Geofencing. Synchronisiert auf allen Geräten.
+                </p>
+                <div class="mt-12 space-y-4">
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        <span>Automatischer Start/Stop per GPS</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        <span>Ende-zu-Ende verschlüsselt</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        <span>Überstunden & Urlaub im Blick</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side - Login Form -->
+        <div class="flex-1 flex items-center justify-center p-6 sm:p-12">
+            <div class="w-full max-w-md">
+                <!-- Mobile Logo -->
+                <div class="lg:hidden text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
+                        <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">VibedTracker</h1>
+                </div>
+
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Willkommen zurück</h2>
+                    <p class="mt-2 text-gray-600 dark:text-gray-400">Melde dich an um fortzufahren</p>
+                </div>
+
+                <!-- Login Card -->
+                <div id="login-card">
+                    <form hx-post="/web/auth/login"
+                          hx-target="#login-card"
+                          hx-swap="innerHTML">
+
+                        {{if .Error}}
+                        <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl text-sm flex items-start space-x-3">
+                            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>{{.Error}}</span>
+                        </div>
+                        {{end}}
+
+                        <div class="space-y-5">
+                            <div>
+                                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">E-Mail</label>
+                                <input type="email"
+                                       id="email"
+                                       name="email"
+                                       autocomplete="email username"
+                                       required
+                                       autofocus
+                                       class="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-400 dark:focus:border-primary-400 outline-none transition-all"
+                                       placeholder="deine@email.de"
+                                       value="{{.Email}}">
+                            </div>
+
+                            <div>
+                                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passwort</label>
+                                <input type="password"
+                                       id="password"
+                                       name="password"
+                                       autocomplete="current-password"
+                                       required
+                                       class="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-400 dark:focus:border-primary-400 outline-none transition-all"
+                                       placeholder="••••••••">
+                            </div>
+
+                            <button type="submit"
+                                    class="w-full py-3.5 px-4 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40">
+                                <span class="ready">Anmelden</span>
+                                <span class="loading">
+                                    <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                    </svg>
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Footer -->
+                <p class="mt-8 text-center text-sm text-gray-500 dark:text-gray-500">
+                    Sichere Zeiterfassung mit 2-Faktor-Authentifizierung
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

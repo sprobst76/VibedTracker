@@ -39,6 +39,7 @@ func main() {
 	deviceRepo := repository.NewDeviceRepository(db.Pool)
 	syncRepo := repository.NewSyncRepository(db.Pool)
 	totpRepo := repository.NewTOTPRepository(db.Pool)
+	passphraseRecoveryRepo := repository.NewPassphraseRecoveryRepository(db.Pool)
 
 	// Create handlers
 	authHandler := handlers.NewAuthHandler(cfg, userRepo, tokenRepo, deviceRepo, totpRepo)
@@ -46,6 +47,8 @@ func main() {
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, tokenRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, tokenRepo)
 	totpHandler := handlers.NewTOTPHandler(cfg, userRepo, totpRepo, tokenRepo, deviceRepo)
+	webHandler := handlers.NewWebHandler(cfg, userRepo, tokenRepo, totpRepo, syncRepo, deviceRepo, passphraseRecoveryRepo)
+	passphraseHandler := handlers.NewPassphraseHandler(userRepo, passphraseRecoveryRepo)
 
 	// Create initial admin if configured
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -54,7 +57,7 @@ func main() {
 	}
 	cancel()
 
-	// Cleanup expired tokens and TOTP attempts periodically
+	// Cleanup expired tokens and attempts periodically
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
@@ -64,6 +67,9 @@ func main() {
 			}
 			if err := totpRepo.CleanupOldAttempts(ctx); err != nil {
 				log.Printf("Failed to cleanup old TOTP attempts: %v", err)
+			}
+			if err := passphraseRecoveryRepo.CleanupOldAttempts(ctx); err != nil {
+				log.Printf("Failed to cleanup old passphrase recovery attempts: %v", err)
 			}
 			totpRepo.CleanupExpiredTempTokens()
 			cancel()
@@ -113,7 +119,15 @@ func main() {
 		{
 			// User profile
 			protected.GET("/me", authHandler.Me)
-			protected.POST("/key", authHandler.SetKey)
+			protected.POST("/key", passphraseHandler.SetKey)
+
+			// Passphrase recovery management
+			passphrase := protected.Group("/passphrase")
+			{
+				passphrase.GET("/recovery/status", passphraseHandler.GetRecoveryStatus)
+				passphrase.POST("/recovery/regenerate", passphraseHandler.RegenerateRecoveryCodes)
+				passphrase.POST("/recovery/reset", passphraseHandler.ResetWithRecoveryCode)
+			}
 
 			// TOTP management (protected)
 			totp := protected.Group("/totp")
@@ -158,6 +172,55 @@ func main() {
 
 	// Serve admin dashboard
 	r.Static("/admin", "./admin")
+
+	// Serve static JS files for HTMX frontend
+	r.Static("/static", "./static")
+
+	// Web routes (HTMX frontend)
+	web := r.Group("/web")
+	{
+		// Public routes
+		web.GET("/login", webHandler.LoginPage)
+		web.POST("/auth/login", webHandler.Login)
+		web.POST("/auth/totp", webHandler.TOTPVerify)
+
+		// Protected routes
+		webProtected := web.Group("/")
+		webProtected.Use(middleware.WebAuthMiddleware(tokenRepo, userRepo))
+		{
+			webProtected.GET("/dashboard", webHandler.Dashboard)
+			webProtected.GET("/unlock", webHandler.Unlock)
+			webProtected.GET("/vacation", webHandler.Vacation)
+			webProtected.GET("/settings", webHandler.Settings)
+			webProtected.GET("/api/data", webHandler.GetEncryptedData)
+			webProtected.POST("/api/entry", webHandler.SaveEncryptedEntry)
+			webProtected.DELETE("/api/entry/:id", webHandler.DeleteEncryptedEntry)
+			webProtected.POST("/api/vacation", webHandler.SaveVacation)
+			webProtected.DELETE("/api/vacation/:id", webHandler.DeleteVacation)
+			webProtected.POST("/api/passphrase/reset", webHandler.PassphraseReset)
+			webProtected.POST("/auth/logout", webHandler.Logout)
+
+			// Admin routes (require admin via middleware)
+			webAdmin := webProtected.Group("/admin")
+			webAdmin.Use(middleware.WebAdminMiddleware())
+			{
+				webAdmin.GET("", webHandler.Admin)
+				webAdmin.GET("/users", webHandler.AdminUsers)
+				webAdmin.POST("/users/:id/approve", webHandler.AdminApproveUser)
+				webAdmin.POST("/users/:id/block", webHandler.AdminBlockUser)
+				webAdmin.POST("/users/:id/unblock", webHandler.AdminUnblockUser)
+				webAdmin.DELETE("/users/:id", webHandler.AdminDeleteUser)
+				webAdmin.GET("/devices", webHandler.AdminDevices)
+				webAdmin.DELETE("/devices/:id", webHandler.AdminDeleteDevice)
+				webAdmin.GET("/stats", webHandler.AdminStats)
+			}
+		}
+	}
+
+	// Redirect root to web login
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(302, "/web/login")
+	})
 
 	// Serve Flutter Web App (SPA)
 	r.Static("/assets", "./webapp/assets")

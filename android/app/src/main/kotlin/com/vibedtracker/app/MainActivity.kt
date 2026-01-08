@@ -1,4 +1,4 @@
-package com.example.time_tracker
+package com.vibedtracker.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

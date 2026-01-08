@@ -16,6 +16,7 @@ import 'models/vacation_quota.dart';
 import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/totp_setup_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers.dart';
 import 'services/secure_storage_service.dart';
@@ -175,14 +176,27 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       );
     }
 
-    // Web: Auth ist Pflicht
+    // Web: Auth + 2FA ist Pflicht
     if (kIsWeb) {
+      // Nicht authentifiziert -> direkt Login-Screen
+      if (authStatus == AuthStatus.unauthenticated) {
+        return const AuthScreen();
+      }
+
+      // Pending/Blocked -> Status-Meldung
       if (authStatus != AuthStatus.authenticated) {
         return _WebAuthWrapper(
           authStatus: authStatus,
         );
       }
-      // Authentifiziert - zeige App
+
+      // Prüfe ob 2FA aktiviert ist
+      final user = ref.watch(authStatusProvider.notifier).currentUser;
+      if (user != null && !user.totpEnabled) {
+        return const _WebTOTPSetupRequired();
+      }
+
+      // Authentifiziert mit 2FA - zeige App
       return const HomeScreen();
     }
 
@@ -191,6 +205,122 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       return LockScreen(onUnlocked: _onUnlocked);
     }
     return const HomeScreen();
+  }
+}
+
+/// Web 2FA Setup Required Screen
+class _WebTOTPSetupRequired extends ConsumerStatefulWidget {
+  const _WebTOTPSetupRequired();
+
+  @override
+  ConsumerState<_WebTOTPSetupRequired> createState() => _WebTOTPSetupRequiredState();
+}
+
+class _WebTOTPSetupRequiredState extends ConsumerState<_WebTOTPSetupRequired> {
+  bool _isSettingUp = false;
+
+  Future<void> _startTOTPSetup() async {
+    setState(() => _isSettingUp = true);
+
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const TOTPSetupScreen(),
+        fullscreenDialog: true,
+      ),
+    );
+
+    if (result == true) {
+      // TOTP erfolgreich eingerichtet - User-Daten aktualisieren
+      await ref.read(authStatusProvider.notifier).refresh();
+    }
+
+    if (mounted) {
+      setState(() => _isSettingUp = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 450),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.security,
+                    size: 72,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    '2-Faktor-Authentifizierung erforderlich',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Für die Nutzung der Web-App ist die Einrichtung der '
+                    '2-Faktor-Authentifizierung (2FA) erforderlich. '
+                    'Dies schützt deinen Account vor unbefugtem Zugriff.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    color: Colors.blue.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Du benötigst eine Authenticator-App wie Google Authenticator oder Authy.',
+                              style: TextStyle(color: Colors.blue.shade900, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _isSettingUp ? null : _startTOTPSetup,
+                      icon: _isSettingUp
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.shield),
+                      label: Text(_isSettingUp ? 'Wird eingerichtet...' : '2FA jetzt einrichten'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => ref.read(authStatusProvider.notifier).logout(),
+                    child: const Text('Abmelden'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -220,36 +350,6 @@ class _WebAuthWrapper extends ConsumerWidget {
 
   Widget _buildContent(BuildContext context, WidgetRef ref) {
     switch (authStatus) {
-      case AuthStatus.unauthenticated:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.timer_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'VibedTracker',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Bitte anmelden um fortzufahren',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () => _showAuthScreen(context),
-              icon: const Icon(Icons.login),
-              label: const Text('Anmelden'),
-            ),
-          ],
-        );
-
       case AuthStatus.pendingApproval:
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -313,14 +413,5 @@ class _WebAuthWrapper extends ConsumerWidget {
       default:
         return const CircularProgressIndicator();
     }
-  }
-
-  void _showAuthScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const AuthScreen(),
-        fullscreenDialog: true,
-      ),
-    );
   }
 }

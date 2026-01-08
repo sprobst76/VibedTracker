@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urlaub & Abwesenheiten - VibedTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81","950":"#1e1b4b"}
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="/static/js/crypto.js"></script>
+    <script src="/static/js/vacation.js"></script>
+    <style>
+        .htmx-request .loading { display: inline-flex !important; }
+        .htmx-request .ready { display: none !important; }
+        .loading { display: none; }
+        html { transition: background-color 0.3s, color 0.3s; }
+        .calendar-day { min-height: 80px; }
+        .calendar-day:hover { background-color: rgba(99, 102, 241, 0.1); }
+        .calendar-day.selected { background-color: rgba(99, 102, 241, 0.2); }
+    </style>
+    <script>
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            document.documentElement.classList.toggle('dark', e.matches);
+        });
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+    <!-- Navigation -->
+    <nav class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <a href="/web/dashboard" class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <span class="text-xl font-bold text-gray-900 dark:text-white">VibedTracker</span>
+                    </a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <a href="/web/dashboard" class="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        </svg>
+                        <span class="hidden sm:inline">Dashboard</span>
+                    </a>
+                    {{if .User.IsAdmin}}
+                    <a href="/web/admin" class="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <span class="hidden sm:inline">Admin</span>
+                    </a>
+                    {{end}}
+                    <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">{{.User.Email}}</span>
+                    </div>
+                    <form hx-post="/web/auth/logout" hx-target="body">
+                        <button type="submit" class="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                            <span class="hidden sm:inline">Abmelden</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Urlaub & Abwesenheiten</h1>
+                <p class="text-gray-500 dark:text-gray-400 mt-1">Verwalte deine Urlaubstage und Abwesenheiten</p>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Jahresanspruch</p>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1" data-stat="annual">30</p>
+                <p class="text-xs text-gray-400 mt-1">Tage</p>
+            </div>
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Genommen</p>
+                <p class="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1" data-stat="used">0</p>
+                <p class="text-xs text-gray-400 mt-1">Tage</p>
+            </div>
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Geplant</p>
+                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1" data-stat="planned">0</p>
+                <p class="text-xs text-gray-400 mt-1">Tage</p>
+            </div>
+            <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Verbleibend</p>
+                <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1" data-stat="remaining">30</p>
+                <p class="text-xs text-gray-400 mt-1">Tage</p>
+            </div>
+        </div>
+
+        <!-- Calendar Section -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <!-- Calendar Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <button onclick="VacationManager.prevMonth()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white" id="calendar-month"></h2>
+                <button onclick="VacationManager.nextMonth()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="p-4">
+                <!-- Day Headers -->
+                <div class="grid grid-cols-7 gap-1 mb-2">
+                    <div class="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">Mo</div>
+                    <div class="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">Di</div>
+                    <div class="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">Mi</div>
+                    <div class="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">Do</div>
+                    <div class="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">Fr</div>
+                    <div class="text-center text-xs font-medium text-red-500 dark:text-red-400 py-2">Sa</div>
+                    <div class="text-center text-xs font-medium text-red-500 dark:text-red-400 py-2">So</div>
+                </div>
+
+                <!-- Calendar Days -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1">
+                    <!-- Days will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="mt-6 flex flex-wrap gap-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-orange-500"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Urlaub</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-purple-500"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Krankheit</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-pink-500"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Kind krank</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-teal-500"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Sonderurlaub</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-gray-500"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Unbezahlt</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 rounded bg-red-200 dark:bg-red-900"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Feiertag</span>
+            </div>
+        </div>
+
+        <!-- Recent Absences List -->
+        <div class="mt-8">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Eingetragene Abwesenheiten</h2>
+            <div id="absences-list" class="space-y-2">
+                <!-- Absences will be rendered here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-auto">
+        <div class="text-center text-sm text-gray-400 dark:text-gray-600">
+            VibedTracker &mdash; Zeiterfassung einfach gemacht
+        </div>
+    </footer>
+
+    <!-- Absence Modal (hidden by default) -->
+    <div id="absence-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="modal-title">Abwesenheit eintragen</h3>
+                <button onclick="VacationManager.closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="absence-form" onsubmit="return VacationManager.saveAbsence(event)" class="p-6 space-y-5">
+                <input type="hidden" id="absence-date" value="">
+
+                <!-- Selected Date Display -->
+                <div class="text-center py-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Ausgewähltes Datum</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white" id="selected-date-display"></p>
+                </div>
+
+                <!-- Absence Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Art der Abwesenheit</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="VacationManager.selectType(0)" data-type="0"
+                            class="absence-type-btn flex items-center space-x-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-orange-500"></div>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Urlaub</span>
+                        </button>
+                        <button type="button" onclick="VacationManager.selectType(1)" data-type="1"
+                            class="absence-type-btn flex items-center space-x-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Krankheit</span>
+                        </button>
+                        <button type="button" onclick="VacationManager.selectType(2)" data-type="2"
+                            class="absence-type-btn flex items-center space-x-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-pink-500"></div>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Kind krank</span>
+                        </button>
+                        <button type="button" onclick="VacationManager.selectType(3)" data-type="3"
+                            class="absence-type-btn flex items-center space-x-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-teal-500 transition-all">
+                            <div class="w-3 h-3 rounded-full bg-teal-500"></div>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Sonderurlaub</span>
+                        </button>
+                        <button type="button" onclick="VacationManager.selectType(4)" data-type="4"
+                            class="absence-type-btn flex items-center space-x-2 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-500 transition-all col-span-2">
+                            <div class="w-3 h-3 rounded-full bg-gray-500"></div>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Unbezahlt frei</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="absence-type" value="0">
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="absence-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung (optional)</label>
+                    <input type="text" id="absence-description"
+                        class="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="z.B. Sommerurlaub">
+                </div>
+
+                <!-- Error Message -->
+                <div id="absence-error" class="hidden p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl text-sm"></div>
+
+                <!-- Actions -->
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="VacationManager.closeModal()"
+                        class="flex-1 py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl transition-colors">
+                        Abbrechen
+                    </button>
+                    <button type="submit" id="absence-submit-btn"
+                        class="flex-1 py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors">
+                        Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

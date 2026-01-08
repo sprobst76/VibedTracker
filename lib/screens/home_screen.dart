@@ -9,6 +9,7 @@ import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
 import '../services/geofence_notification_service.dart';
 import '../services/reminder_service.dart';
+import '../services/cloud_sync_service.dart';
 import '../models/work_entry.dart';
 import '../models/pause.dart';
 import '../theme/theme_colors.dart';
@@ -38,6 +39,11 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   String? _initError;
   List<DateTime> _missingDays = [];
 
+  // Cloud Sync für Web
+  SyncStatus _cloudSyncStatus = SyncStatus.idle;
+  String? _cloudSyncError;
+  bool _isCloudSyncing = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,8 +72,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     });
 
     try {
-      // Web: Skip platform-specific features
-      if (!kIsWeb) {
+      // Web: Cloud Sync statt Geofence
+      if (kIsWeb) {
+        // Automatischer Cloud-Sync beim Start
+        await _performCloudSync();
+      } else {
+        // Mobile: Platform-specific features
         await _reminderService.init();
         await _geofenceNotificationService.init();
         // Pending Einsprüche verarbeiten (aus Background-Aktionen)
@@ -87,6 +97,44 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         _isInitializing = false;
         _initError = e.toString();
       });
+    }
+  }
+
+  /// Cloud Sync für Web-User
+  Future<void> _performCloudSync() async {
+    if (_isCloudSyncing) return;
+
+    setState(() {
+      _isCloudSyncing = true;
+      _cloudSyncError = null;
+    });
+
+    try {
+      final syncService = ref.read(cloudSyncServiceProvider);
+      final result = await syncService.sync();
+
+      if (mounted) {
+        setState(() {
+          _cloudSyncStatus = result.status;
+          _cloudSyncError = result.errorMessage;
+          _isCloudSyncing = false;
+        });
+
+        // Bei Erfolg: Daten neu laden
+        if (result.status == SyncStatus.success) {
+          ref.invalidate(workListProvider);
+          ref.invalidate(workEntryProvider);
+          ref.invalidate(vacationProvider);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cloudSyncStatus = SyncStatus.error;
+          _cloudSyncError = e.toString();
+          _isCloudSyncing = false;
+        });
+      }
     }
   }
 
@@ -218,7 +266,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ],
             _buildButtonRow(running, isPaused, last, activePause),
             const SizedBox(height: 16),
-            if (running && last != null && last.pauses.isNotEmpty)
+            if (running && last!.pauses.isNotEmpty)
               _buildPauseCard(last, activePause),
             // Geofence Status (nur Mobile)
             if (!kIsWeb && _geofenceStatus != null) ...[
@@ -303,7 +351,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top Row: Status + Actions
+        // Top Row: Status + Actions + Sync
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -313,23 +361,30 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
               child: _buildStatusCard(running, isPaused, last),
             ),
             const SizedBox(width: 16),
-            // Action Buttons
+            // Action Buttons + Sync Status
             Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Aktionen',
-                        style: Theme.of(context).textTheme.titleMedium,
+              child: Column(
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Aktionen',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildWebActionButtons(running, isPaused, last, activePause),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      _buildWebActionButtons(running, isPaused, last, activePause),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  // Cloud Sync Status
+                  _buildCloudSyncStatus(),
+                ],
               ),
             ),
           ],
@@ -354,6 +409,79 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         // Recent Entries
         _buildRecentEntries(entries),
       ],
+    );
+  }
+
+  /// Cloud Sync Status Widget für Web
+  Widget _buildCloudSyncStatus() {
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (_cloudSyncStatus) {
+      case SyncStatus.success:
+        statusColor = Colors.green;
+        statusIcon = Icons.cloud_done;
+        statusText = 'Synchronisiert';
+        break;
+      case SyncStatus.error:
+        statusColor = Colors.red;
+        statusIcon = Icons.cloud_off;
+        statusText = _cloudSyncError ?? 'Sync-Fehler';
+        break;
+      case SyncStatus.offline:
+        statusColor = Colors.orange;
+        statusIcon = Icons.cloud_off;
+        statusText = 'Offline';
+        break;
+      case SyncStatus.notApproved:
+        statusColor = Colors.orange;
+        statusIcon = Icons.warning;
+        statusText = 'Nicht freigeschaltet';
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = Icons.cloud_queue;
+        statusText = 'Bereit';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(statusIcon, color: statusColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Cloud-Sync',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    statusText,
+                    style: TextStyle(fontSize: 12, color: statusColor),
+                  ),
+                ],
+              ),
+            ),
+            if (_isCloudSyncing)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.sync),
+                onPressed: _performCloudSync,
+                tooltip: 'Jetzt synchronisieren',
+              ),
+          ],
+        ),
+      ),
     );
   }
 

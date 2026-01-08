@@ -228,3 +228,29 @@ type RecoveryValidateRequest struct {
 	TempToken string `json:"temp_token" binding:"required"`
 	Code      string `json:"code" binding:"required"`
 }
+
+// Passphrase Recovery models
+
+// SetKeyResponse returns the key info along with recovery codes on first setup
+type SetKeyResponse struct {
+	Message       string   `json:"message"`
+	RecoveryCodes []string `json:"recovery_codes,omitempty"` // Only returned on first setup
+}
+
+// PassphraseRecoveryValidateRequest for validating a passphrase recovery code
+type PassphraseRecoveryValidateRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+// PassphraseResetRequest for resetting passphrase after recovery validation
+type PassphraseResetRequest struct {
+	RecoveryCode        string `json:"recovery_code" binding:"required"`
+	NewKeySalt          string `json:"new_key_salt" binding:"required"`              // Base64
+	NewKeyVerificationHash string `json:"new_key_verification_hash" binding:"required"` // Base64
+}
+
+// PassphraseRecoveryStatusResponse returns recovery code status
+type PassphraseRecoveryStatusResponse struct {
+	HasRecoveryCodes bool `json:"has_recovery_codes"`
+	RemainingCodes   int  `json:"remaining_codes"`
+}

@@ -419,4 +419,62 @@ class CloudSyncService {
     final timestamp = prefs.getInt(_keyLastSync);
     return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp * 1000) : null;
   }
+
+  /// Uploads encryption key info to server and returns recovery codes
+  /// Returns empty list if encryption is already set up (no new codes)
+  Future<List<String>> setKeyWithRecoveryCodes() async {
+    final salt = await _encryption.getSaltBase64();
+    final hash = await _encryption.getVerificationHashBase64();
+
+    if (salt == null || hash == null) {
+      throw Exception('Encryption not set up locally');
+    }
+
+    final response = await _auth.api.post('/api/v1/key', body: {
+      'key_salt': salt,
+      'key_verification_hash': hash,
+    });
+
+    // Extract recovery codes from response (only returned on first setup)
+    final codes = response['recovery_codes'] as List?;
+    if (codes != null) {
+      return codes.map((c) => c.toString()).toList();
+    }
+    return [];
+  }
+
+  /// Gets the passphrase recovery status
+  Future<Map<String, dynamic>> getRecoveryStatus() async {
+    return await _auth.api.get('/api/v1/passphrase/recovery/status');
+  }
+
+  /// Regenerates passphrase recovery codes
+  Future<List<String>> regenerateRecoveryCodes() async {
+    final response = await _auth.api.post('/api/v1/passphrase/recovery/regenerate');
+    final codes = response['codes'] as List?;
+    if (codes != null) {
+      return codes.map((c) => c.toString()).toList();
+    }
+    return [];
+  }
+
+  /// Resets passphrase using a recovery code
+  Future<List<String>> resetPassphraseWithRecoveryCode(
+    String recoveryCode,
+    String newKeySalt,
+    String newKeyVerificationHash,
+  ) async {
+    final response = await _auth.api.post('/api/v1/passphrase/recovery/reset', body: {
+      'recovery_code': recoveryCode,
+      'new_key_salt': newKeySalt,
+      'new_key_verification_hash': newKeyVerificationHash,
+    });
+
+    // New recovery codes are returned after reset
+    final codes = response['recovery_codes'] as List?;
+    if (codes != null) {
+      return codes.map((c) => c.toString()).toList();
+    }
+    return [];
+  }
 }

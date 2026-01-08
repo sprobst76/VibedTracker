@@ -93,3 +93,37 @@ func (r *DeviceRepository) UpdateLastSync(ctx context.Context, id uuid.UUID) err
 	_, err := r.pool.Exec(ctx, `UPDATE devices SET last_sync = $1, updated_at = $1 WHERE id = $2`, now, id)
 	return err
 }
+
+// DeviceWithUser includes user email for admin listing
+type DeviceWithUser struct {
+	models.Device
+	UserEmail string
+}
+
+func (r *DeviceRepository) ListAll(ctx context.Context) ([]DeviceWithUser, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT d.id, d.user_id, d.device_name, d.device_type, d.device_model, d.app_version, d.last_sync, d.created_at, d.updated_at, u.email
+		FROM devices d
+		JOIN users u ON d.user_id = u.id
+		ORDER BY d.created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var devices []DeviceWithUser
+	for rows.Next() {
+		var device DeviceWithUser
+		err := rows.Scan(
+			&device.ID, &device.UserID, &device.DeviceName, &device.DeviceType, &device.DeviceModel,
+			&device.AppVersion, &device.LastSync, &device.CreatedAt, &device.UpdatedAt, &device.UserEmail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		devices = append(devices, device)
+	}
+
+	return devices, rows.Err()
+}

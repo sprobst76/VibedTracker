@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entsperren - VibedTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eef2ff","100":"#e0e7ff","200":"#c7d2fe","300":"#a5b4fc","400":"#818cf8","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81","950":"#1e1b4b"}
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="/static/js/crypto.js"></script>
+    <style>
+        html { transition: background-color 0.3s, color 0.3s; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .dark .gradient-bg {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        }
+        .loading { display: none; }
+        .is-loading .loading { display: inline-flex !important; }
+        .is-loading .ready { display: none !important; }
+    </style>
+    <script>
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            document.documentElement.classList.toggle('dark', e.matches);
+        });
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+    <div class="min-h-full flex">
+        <!-- Left side - Branding -->
+        <div class="hidden lg:flex lg:w-1/2 gradient-bg items-center justify-center p-12">
+            <div class="max-w-md text-white">
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <span class="text-2xl font-bold">VibedTracker</span>
+                </div>
+                <h1 class="text-4xl font-bold mb-4">Zero-Knowledge Verschlüsselung</h1>
+                <p class="text-white/80 text-lg">
+                    Deine Daten sind Ende-zu-Ende verschlüsselt. Nur du kannst sie mit deiner Passphrase entschlüsseln.
+                </p>
+                <div class="mt-12 space-y-4">
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+                        <span>AES-256-GCM Verschlüsselung</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/></svg>
+                        <span>PBKDF2 mit 100.000 Iterationen</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-white/90">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd"/><path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/></svg>
+                        <span>Server kann Daten nicht lesen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side - Unlock Form -->
+        <div class="flex-1 flex items-center justify-center p-6 sm:p-12">
+            <div class="w-full max-w-md">
+                <!-- Mobile Logo -->
+                <div class="lg:hidden text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
+                        <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">VibedTracker</h1>
+                </div>
+
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Daten entsperren</h2>
+                    <p class="mt-2 text-gray-600 dark:text-gray-400">Gib deine Passphrase ein um deine verschlüsselten Daten zu laden</p>
+                </div>
+
+                <!-- User Info -->
+                <div class="mb-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-primary-100 dark:bg-primary-900/50 rounded-full flex items-center justify-center">
+                        <span class="text-sm font-medium text-primary-600 dark:text-primary-400">{{slice .User.Email 0 1 | upper}}</span>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{.User.Email}}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Angemeldet</p>
+                    </div>
+                </div>
+
+                <!-- Unlock Form -->
+                <form id="unlock-form" onsubmit="return handleUnlock(event)">
+                    <div id="error-message" class="hidden mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl text-sm flex items-start space-x-3">
+                        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                        <span id="error-text"></span>
+                    </div>
+
+                    {{if not .HasEncryption}}
+                    <div class="mb-6 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl text-sm flex items-start space-x-3">
+                        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Noch keine Verschlüsselung eingerichtet. Bitte richte die Verschlüsselung in der mobilen App ein.</span>
+                    </div>
+                    {{else}}
+                    <div class="space-y-5">
+                        <div>
+                            <label for="passphrase" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passphrase</label>
+                            <input type="password"
+                                   id="passphrase"
+                                   name="passphrase"
+                                   required
+                                   autofocus
+                                   class="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-400 dark:focus:border-primary-400 outline-none transition-all"
+                                   placeholder="Deine Passphrase">
+                        </div>
+
+                        <button type="submit"
+                                id="unlock-button"
+                                class="w-full py-3.5 px-4 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40">
+                            <span class="ready flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                                </svg>
+                                Entsperren
+                            </span>
+                            <span class="loading">
+                                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+
+                    <!-- Hidden data for crypto -->
+                    <input type="hidden" id="salt" value="{{.Salt}}">
+                    <input type="hidden" id="verification-hash" value="{{.VerificationHash}}">
+                    {{end}}
+                </form>
+
+                {{if .HasEncryption}}
+                <!-- Forgot passphrase link -->
+                <div class="mt-6 text-center">
+                    <button type="button" onclick="showRecoveryModal()" class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
+                        Passphrase vergessen?
+                    </button>
+                </div>
+                {{end}}
+
+                <!-- Skip link -->
+                <div class="mt-4 text-center">
+                    <a href="/web/dashboard" class="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                        Ohne Entsperren fortfahren (nur Statistiken)
+                    </a>
+                </div>
+
+                <!-- Logout link -->
+                <div class="mt-4 text-center">
+                    <form action="/web/auth/logout" method="POST" class="inline">
+                        <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                            Abmelden
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recovery Modal -->
+    <div id="recovery-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <!-- Step 1: Enter Recovery Code -->
+            <div id="recovery-step-1" class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Passphrase wiederherstellen</h3>
+                    <button onclick="hideRecoveryModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                        </svg>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">Gib einen deiner Recovery Codes ein, um deine Passphrase zurückzusetzen.</p>
+                </div>
+
+                <div id="recovery-error" class="hidden mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm"></div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recovery Code</label>
+                    <input type="text" id="recovery-code"
+                           class="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white font-mono"
+                           placeholder="z.B. a1b2c3d4e5f6g7h8">
+                </div>
+
+                <button onclick="proceedToNewPassphrase()" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl">
+                    Weiter
+                </button>
+
+                <div class="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                    <p class="text-xs text-amber-700 dark:text-amber-400">Jeder Recovery Code kann nur einmal verwendet werden. Nach dem Zurücksetzen erhältst du neue Codes.</p>
+                </div>
+            </div>
+
+            <!-- Step 2: Set New Passphrase -->
+            <div id="recovery-step-2" class="p-6 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Neue Passphrase</h3>
+                    <button onclick="hideRecoveryModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div id="recovery-error-2" class="hidden mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm"></div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Neue Passphrase</label>
+                    <input type="password" id="new-passphrase" oninput="updateStrengthIndicator()"
+                           class="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white">
+                </div>
+
+                <div id="strength-indicator" class="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs space-y-1">
+                    <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Anforderungen:</p>
+                    <p id="req-length" class="text-gray-500"><span class="inline-block w-4">&#9675;</span> Mindestens 12 Zeichen</p>
+                    <p id="req-upper" class="text-gray-500"><span class="inline-block w-4">&#9675;</span> Mindestens ein Großbuchstabe</p>
+                    <p id="req-lower" class="text-gray-500"><span class="inline-block w-4">&#9675;</span> Mindestens ein Kleinbuchstabe</p>
+                    <p id="req-digit" class="text-gray-500"><span class="inline-block w-4">&#9675;</span> Mindestens eine Zahl</p>
+                    <p id="req-special" class="text-gray-500"><span class="inline-block w-4">&#9675;</span> Mindestens ein Sonderzeichen</p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passphrase bestätigen</label>
+                    <input type="password" id="confirm-passphrase"
+                           class="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white">
+                </div>
+
+                <div class="flex space-x-3">
+                    <button onclick="backToStep1()" class="flex-1 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
+                        Zurück
+                    </button>
+                    <button id="reset-btn" onclick="resetPassphrase()" class="flex-[2] py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl disabled:opacity-50" disabled>
+                        Zurücksetzen
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Show New Recovery Codes -->
+            <div id="recovery-step-3" class="p-6 hidden">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Passphrase zurückgesetzt!</h3>
+                    <p class="text-gray-600 dark:text-gray-400">Speichere deine neuen Recovery Codes sicher ab.</p>
+                </div>
+
+                <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                    <p class="text-sm text-amber-700 dark:text-amber-400 font-medium">Jeder Code kann nur einmal verwendet werden!</p>
+                </div>
+
+                <div id="new-recovery-codes" class="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg font-mono text-sm space-y-1">
+                </div>
+
+                <button onclick="copyRecoveryCodes()" class="w-full py-2 mb-4 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    Codes kopieren
+                </button>
+
+                <button onclick="finishRecovery()" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl">
+                    Fertig
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recoveryCode = '';
+        let newRecoveryCodes = [];
+
+        function showRecoveryModal() {
+            document.getElementById('recovery-modal').classList.remove('hidden');
+            document.getElementById('recovery-modal').classList.add('flex');
+            document.getElementById('recovery-step-1').classList.remove('hidden');
+            document.getElementById('recovery-step-2').classList.add('hidden');
+            document.getElementById('recovery-step-3').classList.add('hidden');
+            document.getElementById('recovery-code').value = '';
+            document.getElementById('recovery-error').classList.add('hidden');
+        }
+
+        function hideRecoveryModal() {
+            document.getElementById('recovery-modal').classList.add('hidden');
+            document.getElementById('recovery-modal').classList.remove('flex');
+        }
+
+        function proceedToNewPassphrase() {
+            const code = document.getElementById('recovery-code').value.trim();
+            if (!code) {
+                document.getElementById('recovery-error').textContent = 'Bitte Recovery Code eingeben';
+                document.getElementById('recovery-error').classList.remove('hidden');
+                return;
+            }
+            recoveryCode = code;
+            document.getElementById('recovery-step-1').classList.add('hidden');
+            document.getElementById('recovery-step-2').classList.remove('hidden');
+            document.getElementById('new-passphrase').value = '';
+            document.getElementById('confirm-passphrase').value = '';
+            updateStrengthIndicator();
+        }
+
+        function backToStep1() {
+            document.getElementById('recovery-step-2').classList.add('hidden');
+            document.getElementById('recovery-step-1').classList.remove('hidden');
+        }
+
+        function updateStrengthIndicator() {
+            const pw = document.getElementById('new-passphrase').value;
+            const checks = {
+                length: pw.length >= 12,
+                upper: /[A-Z]/.test(pw),
+                lower: /[a-z]/.test(pw),
+                digit: /[0-9]/.test(pw),
+                special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(pw)
+            };
+
+            const updateReq = (id, met) => {
+                const el = document.getElementById(id);
+                if (met) {
+                    el.innerHTML = '<span class="inline-block w-4 text-green-600">&#10003;</span> ' + el.textContent.substring(2);
+                    el.classList.remove('text-gray-500');
+                    el.classList.add('text-green-600', 'dark:text-green-400');
+                } else {
+                    el.innerHTML = '<span class="inline-block w-4">&#9675;</span> ' + el.textContent.substring(2);
+                    el.classList.add('text-gray-500');
+                    el.classList.remove('text-green-600', 'dark:text-green-400');
+                }
+            };
+
+            updateReq('req-length', checks.length);
+            updateReq('req-upper', checks.upper);
+            updateReq('req-lower', checks.lower);
+            updateReq('req-digit', checks.digit);
+            updateReq('req-special', checks.special);
+
+            const allMet = Object.values(checks).every(v => v);
+            document.getElementById('reset-btn').disabled = !allMet;
+        }
+
+        async function resetPassphrase() {
+            const newPw = document.getElementById('new-passphrase').value;
+            const confirmPw = document.getElementById('confirm-passphrase').value;
+
+            if (newPw !== confirmPw) {
+                document.getElementById('recovery-error-2').textContent = 'Passphrasen stimmen nicht überein';
+                document.getElementById('recovery-error-2').classList.remove('hidden');
+                return;
+            }
+
+            const btn = document.getElementById('reset-btn');
+            btn.disabled = true;
+            btn.textContent = 'Wird zurückgesetzt...';
+
+            try {
+                // Generate new salt and derive key
+                const saltBytes = crypto.getRandomValues(new Uint8Array(32));
+                const saltBase64 = btoa(String.fromCharCode(...saltBytes));
+
+                const key = await VTCrypto.deriveKey(newPw, saltBase64);
+                const verificationHash = await VTCrypto.createVerificationHash(key);
+                const hashBase64 = btoa(String.fromCharCode(...new Uint8Array(verificationHash)));
+
+                // Call server to reset
+                const response = await fetch('/web/api/passphrase/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        recovery_code: recoveryCode,
+                        new_key_salt: saltBase64,
+                        new_key_verification_hash: hashBase64
+                    })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Fehler beim Zurücksetzen');
+                }
+
+                const data = await response.json();
+                newRecoveryCodes = data.recovery_codes || [];
+
+                // Store the new key
+                await VTCrypto.storeKey(key);
+
+                // Show step 3
+                document.getElementById('recovery-step-2').classList.add('hidden');
+                document.getElementById('recovery-step-3').classList.remove('hidden');
+
+                // Display new codes
+                const codesDiv = document.getElementById('new-recovery-codes');
+                codesDiv.innerHTML = newRecoveryCodes.map((code, i) =>
+                    `<div class="text-gray-700 dark:text-gray-300">${i + 1}. ${code}</div>`
+                ).join('');
+
+            } catch (error) {
+                document.getElementById('recovery-error-2').textContent = error.message;
+                document.getElementById('recovery-error-2').classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Zurücksetzen';
+            }
+        }
+
+        function copyRecoveryCodes() {
+            const text = newRecoveryCodes.map((code, i) => `${i + 1}. ${code}`).join('\n');
+            navigator.clipboard.writeText(text);
+            alert('Codes kopiert!');
+        }
+
+        function finishRecovery() {
+            window.location.href = '/web/dashboard';
+        }
+
+        async function handleUnlock(event) {
+            event.preventDefault();
+
+            const button = document.getElementById('unlock-button');
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const passphrase = document.getElementById('passphrase').value;
+            const salt = document.getElementById('salt').value;
+            const verificationHash = document.getElementById('verification-hash').value;
+
+            // Show loading
+            button.classList.add('is-loading');
+            button.disabled = true;
+            errorDiv.classList.add('hidden');
+
+            try {
+                // Derive key from passphrase
+                const key = await VTCrypto.deriveKey(passphrase, salt);
+
+                // Verify passphrase
+                const isValid = await VTCrypto.verifyPassphrase(key, verificationHash);
+
+                if (!isValid) {
+                    throw new Error('Falsche Passphrase');
+                }
+
+                // Store key in session
+                await VTCrypto.storeKey(key);
+
+                // Redirect to dashboard
+                window.location.href = '/web/dashboard';
+
+            } catch (error) {
+                errorText.textContent = error.message || 'Fehler beim Entsperren';
+                errorDiv.classList.remove('hidden');
+                button.classList.remove('is-loading');
+                button.disabled = false;
+            }
+
+            return false;
+        }
+
+        // Check if already unlocked
+        if (VTCrypto.hasKey()) {
+            window.location.href = '/web/dashboard';
+        }
+    </script>
+</body>
+</html>
