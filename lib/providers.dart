@@ -746,10 +746,43 @@ final vacationStatsProvider = Provider.family<VacationStats, int>((ref, year) {
   // Jahresanspruch: Erst Quote pro Jahr prüfen, sonst globale Settings
   final annualEntitlement = quota?.annualEntitlementDays ?? settings.annualVacationDays.toDouble();
 
+  // Übertrag berechnen: Wenn nicht explizit gesetzt, automatisch aus Vorjahr berechnen
+  double carryover = quota?.carryoverDays ?? 0.0;
+
+  // Nur automatisch berechnen wenn kein expliziter Übertrag gesetzt ist
+  // und Übertrag in Settings aktiviert ist
+  if ((quota == null || quota.carryoverDays == 0.0) && settings.enableVacationCarryover) {
+    // Vorjahr-Statistik berechnen (ohne Rekursion - nur direkte Werte)
+    final prevYear = year - 1;
+    VacationQuota? prevQuota;
+    try {
+      prevQuota = quotas.firstWhere((q) => q.year == prevYear);
+    } catch (e) {
+      prevQuota = null;
+    }
+
+    final prevAnnualEntitlement = prevQuota?.annualEntitlementDays ?? settings.annualVacationDays.toDouble();
+    final prevCarryover = prevQuota?.carryoverDays ?? 0.0;
+    final prevAdjustments = prevQuota?.adjustmentDays ?? 0.0;
+    final prevTrackedDays = vacations.where((v) =>
+      v.day.year == prevYear && v.type == AbsenceType.vacation
+    ).length.toDouble();
+    final prevManualDays = prevQuota?.manualUsedDays ?? 0.0;
+
+    final prevTotalEntitlement = prevAnnualEntitlement + prevCarryover + prevAdjustments;
+    final prevUsedDays = prevTrackedDays + prevManualDays;
+    final prevRemaining = prevTotalEntitlement - prevUsedDays;
+
+    // Übertrag ist der positive Rest vom Vorjahr
+    if (prevRemaining > 0) {
+      carryover = prevRemaining;
+    }
+  }
+
   return VacationStats(
     year: year,
     annualEntitlement: annualEntitlement,
-    carryover: quota?.carryoverDays ?? 0.0,
+    carryover: carryover,
     adjustments: quota?.adjustmentDays ?? 0.0,
     trackedDays: trackedDays,
     manualDays: quota?.manualUsedDays ?? 0.0,
