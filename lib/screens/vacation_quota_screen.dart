@@ -89,7 +89,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
     final isPastYear = year < currentYear;
 
     return Card(
-      color: isCurrentYear ? Colors.green.shade50 : null,
+      color: isCurrentYear ? context.successBackground : null,
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -108,7 +108,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.green,
+                      color: context.successForeground,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
@@ -120,7 +120,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.grey,
+                      color: context.subtleText,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
@@ -152,7 +152,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Jahresanspruch', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text('Jahresanspruch', style: TextStyle(fontSize: 12, color: context.subtleText)),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -165,19 +165,19 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.orange.shade100,
+                                color: context.pauseBackground,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 'Individuell',
-                                style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
+                                style: TextStyle(fontSize: 10, color: context.pauseForeground),
                               ),
                             ),
                           ] else ...[
                             const SizedBox(width: 8),
                             Text(
                               '(Standard)',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 12, color: context.subtleText),
                             ),
                           ],
                         ],
@@ -237,13 +237,13 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontSize: 12, color: context.infoForeground)),
           Text(
             value,
             style: TextStyle(
               fontSize: 12,
               fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              color: color ?? (bold ? Colors.black : Colors.grey.shade600),
+              color: color ?? context.infoForeground,
             ),
           ),
         ],
@@ -275,12 +275,12 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
               // Jahresanspruch
               Text(
                 'Jahresanspruch',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
               ),
               const SizedBox(height: 4),
               Text(
                 'Standard: $defaultDays Tage',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -316,13 +316,13 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
               // Manuell genommene Tage
               Text(
                 'Bereits genommene Tage (manuell)',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
               ),
               const SizedBox(height: 4),
               Text(
                 'Für Tage die nicht einzeln eingetragen sind.\n'
                 'Z.B. aus früherem System übernommen.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -338,25 +338,30 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
               ),
               const SizedBox(height: 8),
               if (stats.trackedDays > 0)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Zusätzlich: ${stats.trackedDays.toStringAsFixed(0)} eingetragene Tage',
-                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                Builder(builder: (dialogContext) {
+                  final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+                  final bgColor = isDark ? const Color(0xFF1B2D3D) : Colors.blue.shade50;
+                  final fgColor = isDark ? Colors.blue.shade300 : Colors.blue.shade700;
+                  return Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: fgColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Zusätzlich: ${stats.trackedDays.toStringAsFixed(0)} eingetragene Tage',
+                            style: TextStyle(fontSize: 11, color: fgColor),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
         ),

@@ -17,6 +17,21 @@ import '../theme/theme_colors.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
 
+/// Formatiert Stunden mit passender Anzahl Dezimalstellen (0, 1 oder 2)
+String _formatHours(double hours) {
+  // Prüfen ob ganze Zahl
+  if (hours == hours.roundToDouble()) {
+    return hours.toInt().toString();
+  }
+  // Prüfen ob eine Dezimalstelle reicht (z.B. 19.5)
+  final oneDecimal = double.parse(hours.toStringAsFixed(1));
+  if (hours == oneDecimal) {
+    return hours.toStringAsFixed(1).replaceAll('.', ',');
+  }
+  // Zwei Dezimalstellen (z.B. 19.25)
+  return hours.toStringAsFixed(2).replaceAll('.', ',');
+}
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -336,17 +351,17 @@ class SettingsScreen extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: context.infoBackground,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+                          Icon(Icons.info_outline, size: 16, color: context.infoForeground),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Der Standort wird alle 5 Minuten oder bei 100m Bewegung gespeichert.',
-                              style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                              style: TextStyle(fontSize: 11, color: context.infoForeground),
                             ),
                           ),
                         ],
@@ -482,17 +497,17 @@ class SettingsScreen extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
+                        color: context.warningBackground,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.notifications_active, size: 16, color: Colors.amber.shade700),
+                          Icon(Icons.notifications_active, size: 16, color: context.warningForeground),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Du wirst benachrichtigt, wenn Tage ohne Zeiterfassung oder Abwesenheit fehlen.',
-                              style: TextStyle(fontSize: 11, color: Colors.amber.shade700),
+                              style: TextStyle(fontSize: 11, color: context.warningForeground),
                             ),
                           ),
                         ],
@@ -528,17 +543,17 @@ class SettingsScreen extends ConsumerWidget {
 
           // Info Section
           Card(
-            color: Colors.blue.shade50,
+            color: context.infoBackground,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700),
+                  Icon(Icons.info_outline, color: context.infoForeground),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Änderungen werden automatisch gespeichert.',
-                      style: TextStyle(color: Colors.blue.shade700),
+                      style: TextStyle(color: context.infoForeground),
                     ),
                   ),
                 ],
@@ -586,7 +601,7 @@ class SettingsScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${currentHours.toStringAsFixed(currentHours == currentHours.roundToDouble() ? 0 : 1)}h',
+                    '${_formatHours(currentHours)}h',
                     style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -640,10 +655,15 @@ class SettingsScreen extends ConsumerWidget {
                 final weekday = index + 1; // 1-7
                 final isNonWorking = settings.nonWorkingWeekdays.contains(weekday);
                 return FilterChip(
-                  label: Text(weekdayNames[index]),
+                  label: Text(
+                    weekdayNames[index],
+                    style: TextStyle(
+                      color: isNonWorking ? context.errorForeground : null,
+                    ),
+                  ),
                   selected: isNonWorking,
-                  selectedColor: Colors.red.shade100,
-                  checkmarkColor: Colors.red.shade700,
+                  selectedColor: context.errorBackground,
+                  checkmarkColor: context.errorForeground,
                   onSelected: (_) => notifier.toggleNonWorkingWeekday(weekday),
                 );
               }),
@@ -1179,7 +1199,7 @@ class SettingsScreen extends ConsumerWidget {
     final testDataService = TestDataService();
 
     return Card(
-      color: Colors.orange.shade50,
+      color: context.pauseBackground,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1187,14 +1207,14 @@ class SettingsScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.developer_mode, color: Colors.orange.shade700),
+                Icon(Icons.developer_mode, color: context.pauseForeground),
                 const SizedBox(width: 8),
                 Text(
                   'Entwickler-Optionen',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade700,
+                    color: context.pauseForeground,
                   ),
                 ),
               ],

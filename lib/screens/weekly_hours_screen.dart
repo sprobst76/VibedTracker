@@ -3,6 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weekly_hours_period.dart';
 import '../providers.dart';
+import '../theme/theme_colors.dart';
+
+/// Formatiert Stunden mit passender Anzahl Dezimalstellen (0, 1 oder 2)
+String _formatHours(double hours) {
+  if (hours == hours.roundToDouble()) {
+    return hours.toInt().toString();
+  }
+  final oneDecimal = double.parse(hours.toStringAsFixed(1));
+  if (hours == oneDecimal) {
+    return hours.toStringAsFixed(1).replaceAll('.', ',');
+  }
+  return hours.toStringAsFixed(2).replaceAll('.', ',');
+}
 
 class WeeklyHoursScreen extends ConsumerStatefulWidget {
   const WeeklyHoursScreen({super.key});
@@ -39,7 +52,7 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Standard-Arbeitszeit: ${settings.weeklyHours.toStringAsFixed(1)}h/Woche',
+                          'Standard-Arbeitszeit: ${_formatHours(settings.weeklyHours)}h/Woche',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -69,16 +82,16 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    Icon(Icons.schedule, size: 48, color: Colors.grey.shade400),
+                    Icon(Icons.schedule, size: 48, color: context.subtleText),
                     const SizedBox(height: 16),
                     Text(
                       'Keine Perioden definiert',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: context.subtleText),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Es gilt die Standard-Arbeitszeit.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 12, color: context.subtleText),
                     ),
                   ],
                 ),
@@ -100,17 +113,17 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
     final isActive = period.containsDate(DateTime.now());
 
     return Card(
-      color: isActive ? Colors.green.shade50 : null,
+      color: isActive ? context.successBackground : null,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isActive ? Colors.green : Colors.grey,
+          backgroundColor: isActive ? context.successForeground : context.subtleText,
           child: Text(
-            '${period.weeklyHours.round()}h',
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            '${_formatHours(period.weeklyHours)}h',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
           ),
         ),
         title: Text(
-          period.description ?? '${period.weeklyHours}h/Woche',
+          period.description ?? '${_formatHours(period.weeklyHours)}h/Woche',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
@@ -123,7 +136,7 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  color: context.successForeground,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
@@ -230,11 +243,11 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
                 const Text('Wochenstunden', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 TextFormField(
-                  initialValue: weeklyHours.toStringAsFixed(1).replaceAll('.', ','),
+                  initialValue: _formatHours(weeklyHours),
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     suffixText: 'h / Woche',
-                    hintText: 'z.B. 38,5',
+                    hintText: 'z.B. 19,25',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
@@ -252,7 +265,7 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Gültiger Bereich: 1 - 80 Stunden',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color),
                 ),
                 const SizedBox(height: 16),
 
