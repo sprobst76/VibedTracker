@@ -86,8 +86,7 @@ jobs:
           packageName: com.vibedtracker.app
           releaseFiles: app-release.aab
           track: internal
-          status: draft
-          # Ändere zu 'completed' sobald die App in Play Console vollständig eingerichtet ist
+          status: completed
           # Optional: Release Notes aus Tag-Message
           # whatsNewDirectory: distribution/whatsnew
 
