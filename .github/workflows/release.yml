@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-android:
-    name: Build Android APK
+    name: Build Android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,14 +37,57 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keys/release.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keys/release.jks" >> android/key.properties
+
       - name: Build APK
         run: flutter build apk --release
+
+      - name: Build App Bundle (AAB)
+        run: flutter build appbundle --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  deploy-play-store:
+    name: Deploy to Google Play
+    needs: build-android
+    runs-on: ubuntu-latest
+    # Nur deployen wenn PLAY_STORE_JSON secret existiert
+    if: ${{ vars.ENABLE_PLAY_STORE_DEPLOY == 'true' }}
+    steps:
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab
+
+      - name: Upload to Google Play (Internal Testing)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON }}
+          packageName: com.vibedtracker.app
+          releaseFiles: app-release.aab
+          track: internal
+          status: completed
+          # Optional: Release Notes aus Tag-Message
+          # whatsNewDirectory: distribution/whatsnew
 
   create-release:
     name: Create GitHub Release
@@ -57,6 +100,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-apk
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab
 
       - name: Get version from tag
         id: version
@@ -73,15 +121,23 @@ jobs:
           name: VibedTracker ${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-          files: app-release.apk
+          files: |
+            app-release.apk
+            app-release.aab
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             ## VibedTracker ${{ steps.version.outputs.VERSION }}
+
+            ### Downloads
+            - **APK**: Direkte Installation auf Android-Geräten
+            - **AAB**: App Bundle für Google Play Store
 
             ### Features
             - Geofence-basierte automatische Zeiterfassung
             - Manuelle Arbeitszeiteinträge (Erstellen/Bearbeiten/Löschen)
             - Wöchentliche Arbeitszeit mit Zeitraum-Perioden
+            - Cloud-Sync mit Zero-Knowledge Verschlüsselung
+            - Passkey-Support (Face ID, Touch ID, Windows Hello)
             - Dark Mode
             - GPS-Tracking während der Arbeit (optional)
             - Konfigurierbare Geofence-Zonen
@@ -90,7 +146,7 @@ jobs:
             - Urlaubs- und Feiertagsverwaltung
             - Wochenbericht mit Überstundenberechnung
 
-            ### Installation
+            ### Installation (APK)
             1. APK herunterladen
             2. In Android-Einstellungen "Installation aus unbekannten Quellen" aktivieren
             3. APK installieren
