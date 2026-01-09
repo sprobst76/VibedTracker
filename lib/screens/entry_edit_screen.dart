@@ -219,7 +219,13 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.only(
+          top: 16,
+          left: 16,
+          right: 16,
+          // Extra Padding unten für System-Navigation (Samsung, etc.)
+          bottom: 16 + MediaQuery.of(context).padding.bottom + 24,
+        ),
         children: [
           // Start Section
           _buildTimeSection(true),
@@ -258,13 +264,15 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
             _buildDurationPreview(),
           const SizedBox(height: 24),
 
-          // Save Button
-          ElevatedButton.icon(
+          // Save Button - prominent und gut sichtbar
+          FilledButton.icon(
             onPressed: _save,
             icon: const Icon(Icons.save),
             label: Text(isNewEntry ? 'Eintrag erstellen' : 'Speichern'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.all(16),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              minimumSize: const Size(double.infinity, 56),
             ),
           ),
         ],
