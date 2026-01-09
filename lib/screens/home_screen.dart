@@ -266,7 +266,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ],
             _buildButtonRow(running, isPaused, last, activePause),
             const SizedBox(height: 16),
-            if (running && last!.pauses.isNotEmpty)
+            if (running && last.pauses.isNotEmpty)
               _buildPauseCard(last, activePause),
             // Geofence Status (nur Mobile)
             if (!kIsWeb && _geofenceStatus != null) ...[
