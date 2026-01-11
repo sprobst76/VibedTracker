@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Fragen & Diskussionen
+    url: https://github.com/sprobst76/VibedTracker/discussions
+    about: Nutze GitHub Discussions für allgemeine Fragen
