@@ -14,6 +14,20 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.25] - 2026-01-12
+
+### Hinzugefügt
+- **Geofence Debug Screen**: Umfangreicher Diagnose-Bildschirm für GPS/Geofencing
+  - Berechtigungsstatus (Location, Notifications, etc.)
+  - Aktuelle GPS-Position mit Genauigkeit
+  - Konfigurierte Zonen mit Entfernungsberechnung
+  - Event-Queue Status und Historie
+  - Debug-Log mit Export-Funktion
+  - Test-Aktionen (ENTER/EXIT Events simulieren)
+- Link zum Debug-Screen in Einstellungen → Arbeitsorte
+
+---
+
 ## [0.1.0-beta.24] - 2026-01-12
 
 ### Behoben

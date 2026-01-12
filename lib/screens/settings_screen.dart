@@ -8,6 +8,7 @@ import '../services/reminder_service.dart';
 import '../services/backup_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
+import 'geofence_debug_screen.dart';
 import 'calendar_settings_screen.dart';
 import 'projects_screen.dart';
 import 'security_settings_screen.dart';
@@ -299,13 +300,28 @@ class SettingsScreen extends ConsumerWidget {
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const GeofenceSetupScreen()),
-                    ),
-                    icon: const Icon(Icons.location_on),
-                    label: const Text('Arbeitsorte verwalten'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const GeofenceSetupScreen()),
+                          ),
+                          icon: const Icon(Icons.location_on),
+                          label: const Text('Arbeitsorte'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const GeofenceDebugScreen()),
+                        ),
+                        icon: const Icon(Icons.bug_report),
+                        label: const Text('Debug'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1263,6 +1279,15 @@ class SettingsScreen extends ConsumerWidget {
               },
               icon: const Icon(Icons.add_chart),
               label: const Text('Testdaten generieren (3 Monate)'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const GeofenceDebugScreen()),
+              ),
+              icon: const Icon(Icons.bug_report),
+              label: const Text('Geofence Debug'),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
