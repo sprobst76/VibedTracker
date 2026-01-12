@@ -14,6 +14,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.24] - 2026-01-12
+
+### Behoben
+- **Geofence funktioniert nicht**: Fehlende Android-Berechtigungen im Manifest hinzugefügt
+  - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`
+  - `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`
+  - `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`
+
+### Hinzugefügt
+- GitHub Community-Dateien: LICENSE (MIT), CONTRIBUTING.md, CODE_OF_CONDUCT.md, Issue-Templates
+
+---
+
 ## [Server 1.0.0] - 2026-01-07
 
 ### Hinzugefügt

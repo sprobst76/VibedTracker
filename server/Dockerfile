@@ -10,6 +10,7 @@ RUN apk add --no-cache git
 COPY . .
 
 # Download dependencies (generate go.sum if missing)
+ENV GOSUMDB=off
 RUN go mod tidy && go mod download
 
 # Build
