@@ -14,6 +14,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.27] - 2026-01-13
+
+### Hinzugefügt
+- **Statusleisten-Anzeige**: Persistente Notification in der Android-Statusleiste
+  - Zeigt "▶️ Arbeitszeit läuft" mit Netto-Arbeitszeit und Startzeit
+  - Zeigt "⏸️ Pause" mit Pausendauer bei aktiver Pause
+  - Aktualisiert sich automatisch alle 30 Sekunden
+  - Kann nicht weggewischt werden (ongoing notification)
+  - Verschwindet automatisch beim Stoppen der Arbeitszeit
+
+---
+
 ## [0.1.0-beta.26] - 2026-01-12
 
 ### Verbessert

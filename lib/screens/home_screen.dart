@@ -8,6 +8,7 @@ import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
 import '../services/geofence_notification_service.dart';
+import '../services/work_status_notification_service.dart';
 import '../services/reminder_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../models/work_entry.dart';
@@ -34,6 +35,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   final _locationService = LocationTrackingService();
   final _reminderService = ReminderService();
   final _geofenceNotificationService = GeofenceNotificationService();
+  final _workStatusNotificationService = WorkStatusNotificationService();
   GeofenceStatus? _geofenceStatus;
   bool _isInitializing = true;
   String? _initError;
@@ -80,6 +82,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         // Mobile: Platform-specific features
         await _reminderService.init();
         await _geofenceNotificationService.init();
+        await _workStatusNotificationService.init();
         // Pending Einsprüche verarbeiten (aus Background-Aktionen)
         final objectionCount =
             await _geofenceNotificationService.processPendingObjections();
@@ -89,6 +92,8 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         await _syncPendingEvents();
         await _initializeGeofence();
         await _setupReminders();
+        // Status-Notification aktualisieren
+        await _updateWorkStatusNotification();
       }
       await _loadMissingDays();
       setState(() => _isInitializing = false);
@@ -198,6 +203,21 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       ref.invalidate(workListProvider);
     }
     await _updateStatus();
+    await _updateWorkStatusNotification();
+  }
+
+  /// Aktualisiert die Status-Notification in der Symbolleiste
+  Future<void> _updateWorkStatusNotification() async {
+    if (kIsWeb) return; // Nur für Mobile
+
+    try {
+      final workBox = Hive.box<WorkEntry>('work');
+      final runningEntries = workBox.values.where((e) => e.stop == null).toList();
+      final runningEntry = runningEntries.isNotEmpty ? runningEntries.last : null;
+      await _workStatusNotificationService.updateStatus(runningEntry);
+    } catch (e) {
+      debugPrint('Error updating work status notification: $e');
+    }
   }
 
   Future<void> _updateStatus() async {
@@ -221,12 +241,14 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     entry.pauses.add(Pause(start: DateTime.now()));
     await entry.save();
     ref.invalidate(workListProvider);
+    await _updateWorkStatusNotification();
   }
 
   Future<void> _endPause(WorkEntry entry, Pause pause) async {
     pause.end = DateTime.now();
     await entry.save();
     ref.invalidate(workListProvider);
+    await _updateWorkStatusNotification();
   }
 
   Duration _getTotalPauseDuration(WorkEntry entry) {
@@ -510,6 +532,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                 }
                 ref.invalidate(workListProvider);
                 await _updateStatus();
+                await _updateWorkStatusNotification();
               },
         icon: const Icon(Icons.play_arrow),
         label: const Text('Arbeit starten'),
@@ -558,6 +581,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             }
             ref.invalidate(workListProvider);
             await _updateStatus();
+            await _updateWorkStatusNotification();
           },
           icon: const Icon(Icons.stop),
           label: const Text('Arbeit beenden'),
@@ -746,6 +770,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
     ref.invalidate(workListProvider);
     await _updateStatus();
+    await _updateWorkStatusNotification();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -804,6 +829,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
                       ref.invalidate(workListProvider);
                       await _updateStatus();
+                      await _updateWorkStatusNotification();
                     },
               child: _isInitializing
                   ? const SizedBox(
