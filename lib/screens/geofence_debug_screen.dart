@@ -8,7 +8,10 @@ import 'package:share_plus/share_plus.dart';
 import '../models/geofence_zone.dart';
 import '../providers.dart';
 import '../services/geofence_event_queue.dart';
+import '../services/geofence_sync_service.dart';
+import '../models/work_entry.dart';
 import '../theme/theme_colors.dart';
+import 'package:hive/hive.dart';
 
 class GeofenceDebugScreen extends ConsumerStatefulWidget {
   const GeofenceDebugScreen({super.key});
@@ -42,6 +45,10 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
   // Logs
   final List<_LogEntry> _logs = [];
 
+  // Work Entry Status
+  WorkEntry? _runningEntry;
+  int? _lastSyncResult;
+
   @override
   void initState() {
     super.initState();
@@ -61,8 +68,43 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       _loadPermissions(),
       _loadPosition(),
       _loadEventQueue(),
+      _loadWorkEntryStatus(),
     ]);
     setState(() => _lastRefresh = DateTime.now());
+  }
+
+  Future<void> _loadWorkEntryStatus() async {
+    try {
+      final workBox = Hive.box<WorkEntry>('work');
+      final running = workBox.values.where((e) => e.stop == null).toList();
+      if (mounted) {
+        setState(() {
+          _runningEntry = running.isNotEmpty ? running.last : null;
+        });
+      }
+    } catch (e) {
+      _addLog('Fehler beim Laden des WorkEntry-Status: $e', isError: true);
+    }
+  }
+
+  Future<void> _forceSyncNow() async {
+    _addLog('Force Sync gestartet...');
+    try {
+      final workBox = Hive.box<WorkEntry>('work');
+      final syncService = GeofenceSyncService(workBox);
+      final processedCount = await syncService.syncPendingEvents();
+
+      setState(() => _lastSyncResult = processedCount);
+      _addLog('Sync abgeschlossen: $processedCount Events verarbeitet');
+
+      if (processedCount > 0) {
+        ref.invalidate(workListProvider);
+      }
+
+      await _loadAll();
+    } catch (e) {
+      _addLog('Sync Fehler: $e', isError: true);
+    }
   }
 
   Future<void> _loadPermissions() async {
@@ -192,6 +234,10 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
 
             // Zones Section
             _buildZonesCard(zones),
+            const SizedBox(height: 16),
+
+            // Work Entry Status Section
+            _buildWorkEntryCard(),
             const SizedBox(height: 16),
 
             // Event Queue Section
@@ -602,6 +648,88 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
     );
   }
 
+  Widget _buildWorkEntryCard() {
+    return Card(
+      color: _runningEntry != null ? context.successBackground : null,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _runningEntry != null ? Icons.play_circle : Icons.stop_circle,
+                  color: _runningEntry != null ? context.successForeground : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Arbeitszeit-Status',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _runningEntry != null
+                        ? Colors.green.withAlpha(51)
+                        : Colors.grey.withAlpha(51),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _runningEntry != null ? 'Läuft' : 'Gestoppt',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _runningEntry != null ? Colors.green : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(),
+            if (_runningEntry != null) ...[
+              _buildInfoRow('Gestartet', _formatDateTime(_runningEntry!.start)),
+              _buildInfoRow('Laufzeit', _formatDuration(DateTime.now().difference(_runningEntry!.start))),
+              if (_runningEntry!.pauses.isNotEmpty)
+                _buildInfoRow('Pausen', '${_runningEntry!.pauses.length}'),
+            ] else ...[
+              const Text(
+                'Keine laufende Arbeitszeit',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: context.warningBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info, size: 16, color: context.warningForeground),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Bei ENTER-Event wird neue Arbeitszeit gestartet, '
+                        'aber nur wenn keine bereits läuft!',
+                        style: TextStyle(fontSize: 11, color: context.warningForeground),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_lastSyncResult != null) ...[
+              const Divider(),
+              _buildInfoRow('Letzter Sync', '$_lastSyncResult Events verarbeitet'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEventQueueCard() {
     return Card(
       child: Padding(
@@ -850,6 +978,16 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            // Primary Action: Force Sync
+            FilledButton.icon(
+              onPressed: _forceSyncNow,
+              icon: const Icon(Icons.sync),
+              label: const Text('Events jetzt verarbeiten'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -866,12 +1004,14 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     // Simulate ENTER event
+                    final zones = ref.read(geofenceZonesProvider);
+                    final zoneId = zones.isNotEmpty ? zones.first.id : 'debug_test';
                     await GeofenceEventQueue.enqueue(GeofenceEventData(
-                      zoneId: 'debug_test',
+                      zoneId: zoneId,
                       event: GeofenceEvent.enter,
                       timestamp: DateTime.now(),
                     ));
-                    _addLog('Test ENTER Event erstellt');
+                    _addLog('Test ENTER Event erstellt (Zone: $zoneId)');
                     await _loadEventQueue();
                   },
                   icon: const Icon(Icons.login, size: 18),
@@ -880,12 +1020,14 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     // Simulate EXIT event
+                    final zones = ref.read(geofenceZonesProvider);
+                    final zoneId = zones.isNotEmpty ? zones.first.id : 'debug_test';
                     await GeofenceEventQueue.enqueue(GeofenceEventData(
-                      zoneId: 'debug_test',
+                      zoneId: zoneId,
                       event: GeofenceEvent.exit,
                       timestamp: DateTime.now(),
                     ));
-                    _addLog('Test EXIT Event erstellt');
+                    _addLog('Test EXIT Event erstellt (Zone: $zoneId)');
                     await _loadEventQueue();
                   },
                   icon: const Icon(Icons.logout, size: 18),
@@ -982,6 +1124,15 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       return '${meters.round()}m';
     }
     return '${(meters / 1000).toStringAsFixed(1)}km';
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 }
 

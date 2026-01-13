@@ -14,6 +14,19 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.26] - 2026-01-12
+
+### Verbessert
+- **Geofence Debug Screen**: Erweiterte Diagnose-Funktionen
+  - Neuer "Events jetzt verarbeiten" Button (Force Sync)
+  - Arbeitszeit-Status Anzeige (läuft/gestoppt)
+  - Laufzeit-Anzeige bei aktiver Arbeitszeit
+  - Letzter Sync-Ergebnis Anzeige
+  - Test-Events nutzen jetzt echte Zone-IDs
+  - Bessere Hinweise warum Events nicht verarbeitet werden
+
+---
+
 ## [0.1.0-beta.25] - 2026-01-12
 
 ### Hinzugefügt
