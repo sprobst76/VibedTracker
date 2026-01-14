@@ -52,6 +52,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Geofence Foreground Service for background location tracking -->
+        <service
+            android:name="com.f2fk.geofence_foreground_service.GeofenceForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false">
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

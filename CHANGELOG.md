@@ -14,6 +14,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.28] - 2026-01-14
+
+### Behoben
+- **Geofence Service nicht gefunden**: Kritischer Fix für automatische Zeiterfassung
+  - Service-Deklaration in AndroidManifest.xml hinzugefügt
+  - ProGuard-Regel hinzugefügt um Obfuscation des Services zu verhindern
+  - Fehler "Unable to start service R0.d not found" behoben
+
+---
+
 ## [0.1.0-beta.27] - 2026-01-13
 
 ### Hinzugefügt

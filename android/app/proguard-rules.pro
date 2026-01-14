@@ -18,3 +18,6 @@
 # Prevent stripping of generic type information
 -keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
 -keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+
+# Geofence Foreground Service - prevent obfuscation
+-keep class com.f2fk.geofence_foreground_service.** { *; }
