@@ -14,6 +14,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.29] - 2026-01-15
+
+### Behoben
+- **Einträge werden nicht angezeigt**: Type Error bei workModeIndex behoben
+  - Hive-Adapter kann jetzt String und Int für workModeIndex verarbeiten
+  - Fehler "Type string is not a subtype of type 'int'" behoben
+
+---
+
 ## [0.1.0-beta.28] - 2026-01-14
 
 ### Behoben

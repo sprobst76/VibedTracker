@@ -16,6 +16,14 @@ class WorkEntryAdapter extends TypeAdapter<WorkEntry> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+    // Handle workModeIndex type conversion (may be String in old data)
+    int workModeIndex = 0;
+    final rawWorkModeIndex = fields[6];
+    if (rawWorkModeIndex is int) {
+      workModeIndex = rawWorkModeIndex;
+    } else if (rawWorkModeIndex is String) {
+      workModeIndex = int.tryParse(rawWorkModeIndex) ?? 0;
+    }
     return WorkEntry(
       start: fields[0] as DateTime,
       stop: fields[1] as DateTime?,
@@ -23,7 +31,7 @@ class WorkEntryAdapter extends TypeAdapter<WorkEntry> {
       notes: fields[3] as String?,
       tags: (fields[4] as List?)?.cast<String>(),
       projectId: fields[5] as String?,
-      workModeIndex: fields[6] as int,
+      workModeIndex: workModeIndex,
     );
   }
 
