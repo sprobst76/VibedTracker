@@ -1,6 +1,6 @@
 name: time_tracker
 description: Zeiterfassung mit Geofence, Urlaub, Feiertagen & ICS-Sync
-version: 0.1.0-beta.29+29
+version: 0.1.0-beta.30+30
 publish_to: 'none'
 
 environment:

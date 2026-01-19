@@ -57,13 +57,24 @@ class GeofenceEventQueue {
     // Aktuelle Queue laden
     final queue = await getQueue();
 
-    // Duplikate vermeiden: Nicht dasselbe Event innerhalb von 30 Sekunden
     final lastEvent = queue.isNotEmpty ? queue.last : null;
-    if (lastEvent != null &&
-        lastEvent.event == event.event &&
-        lastEvent.zoneId == event.zoneId &&
-        event.timestamp.difference(lastEvent.timestamp).inSeconds.abs() < 30) {
-      return; // Duplikat ignorieren
+    if (lastEvent != null) {
+      final timeDiff = event.timestamp.difference(lastEvent.timestamp).inSeconds.abs();
+
+      // Duplikate vermeiden: Gleiches Event innerhalb von 30 Sekunden
+      if (lastEvent.event == event.event &&
+          lastEvent.zoneId == event.zoneId &&
+          timeDiff < 30) {
+        return; // Duplikat ignorieren
+      }
+
+      // Bounce-Protection: EXIT→ENTER oder ENTER→EXIT innerhalb von 5 Minuten ignorieren
+      // Verhindert zerstückelte Einträge bei GPS-Fluktuation an der Zonengrenze
+      if (lastEvent.zoneId == event.zoneId &&
+          lastEvent.event != event.event &&
+          timeDiff < 300) { // 5 Minuten
+        return; // Bounce ignorieren
+      }
     }
 
     // Event hinzufügen

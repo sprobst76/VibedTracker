@@ -14,6 +14,15 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.30] - 2026-01-19
+
+### Behoben
+- **Zerstückelte Einträge bei Geofence**: Bounce-Protection hinzugefügt
+  - EXIT→ENTER oder ENTER→EXIT Events innerhalb von 5 Minuten werden ignoriert
+  - Verhindert fragmentierte Einträge bei GPS-Fluktuation an der Zonengrenze
+
+---
+
 ## [0.1.0-beta.29] - 2026-01-15
 
 ### Behoben
