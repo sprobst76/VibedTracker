@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   bool _isInitializing = true;
   String? _initError;
   List<DateTime> _missingDays = [];
+  Timer? _refreshTimer;
 
   // Cloud Sync für Web
   SyncStatus _cloudSyncStatus = SyncStatus.idle;
@@ -52,12 +54,33 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _syncService = GeofenceSyncService(Hive.box<WorkEntry>('work'));
     _initialize();
+    // Auto-refresh alle 10 Sekunden für Geofence-Status (nur Mobile)
+    if (!kIsWeb) {
+      _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+        _refreshStatus();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Aktualisiert nur den Status ohne volle Initialisierung
+  Future<void> _refreshStatus() async {
+    if (!mounted) return;
+    await _updateStatus();
+    // WorkList neu laden falls sich was geändert hat
+    final workBox = Hive.box<WorkEntry>('work');
+    final hasRunning = workBox.values.any((e) => e.stop == null);
+    final entries = ref.read(workListProvider);
+    final uiHasRunning = entries.isNotEmpty && entries.last.stop == null;
+    if (hasRunning != uiHasRunning) {
+      ref.invalidate(workListProvider);
+    }
   }
 
   @override
@@ -73,36 +96,83 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       _initError = null;
     });
 
-    try {
-      // Web: Cloud Sync statt Geofence
-      if (kIsWeb) {
-        // Automatischer Cloud-Sync beim Start
+    final errors = <String>[];
+
+    // Web: Cloud Sync statt Geofence
+    if (kIsWeb) {
+      try {
         await _performCloudSync();
-      } else {
-        // Mobile: Platform-specific features
+      } catch (e) {
+        errors.add('Cloud Sync: $e');
+      }
+    } else {
+      // Mobile: Platform-specific features - jeder Service einzeln initialisieren
+      try {
         await _reminderService.init();
+      } catch (e) {
+        debugPrint('ReminderService init error: $e');
+      }
+
+      try {
         await _geofenceNotificationService.init();
-        await _workStatusNotificationService.init();
-        // Pending Einsprüche verarbeiten (aus Background-Aktionen)
         final objectionCount =
             await _geofenceNotificationService.processPendingObjections();
         if (objectionCount > 0) {
           ref.invalidate(workListProvider);
         }
-        await _syncPendingEvents();
-        await _initializeGeofence();
-        await _setupReminders();
-        // Status-Notification aktualisieren
-        await _updateWorkStatusNotification();
+      } catch (e) {
+        debugPrint('GeofenceNotificationService init error: $e');
       }
-      await _loadMissingDays();
-      setState(() => _isInitializing = false);
-    } catch (e) {
-      setState(() {
-        _isInitializing = false;
-        _initError = e.toString();
-      });
+
+      try {
+        await _workStatusNotificationService.init();
+      } catch (e) {
+        debugPrint('WorkStatusNotificationService init error: $e');
+      }
+
+      // Sync und Status IMMER versuchen
+      try {
+        await _syncPendingEvents();
+      } catch (e) {
+        debugPrint('SyncPendingEvents error: $e');
+      }
+
+      // Status IMMER aktualisieren (wichtig für UI)
+      try {
+        await _updateStatus();
+      } catch (e) {
+        debugPrint('UpdateStatus error: $e');
+      }
+
+      try {
+        await _initializeGeofence();
+      } catch (e) {
+        errors.add('Geofence: $e');
+      }
+
+      try {
+        await _setupReminders();
+      } catch (e) {
+        debugPrint('SetupReminders error: $e');
+      }
+
+      try {
+        await _updateWorkStatusNotification();
+      } catch (e) {
+        debugPrint('UpdateWorkStatusNotification error: $e');
+      }
     }
+
+    try {
+      await _loadMissingDays();
+    } catch (e) {
+      debugPrint('LoadMissingDays error: $e');
+    }
+
+    setState(() {
+      _isInitializing = false;
+      _initError = errors.isNotEmpty ? errors.join('\n') : null;
+    });
   }
 
   /// Cloud Sync für Web-User

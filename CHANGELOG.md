@@ -14,6 +14,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.31] - 2026-01-19
+
+### Behoben
+- **Geofence-Status wird nicht angezeigt**: Home Screen zeigt jetzt immer Zone-Status
+  - Auto-Refresh alle 10 Sekunden für Geofence-Status und laufende Arbeitszeit
+  - Robustere Initialisierung - einzelne Service-Fehler blockieren nicht die UI
+  - Status wird immer geladen, auch wenn andere Services fehlschlagen
+  - UI erkennt automatisch wenn Arbeitszeit im Hintergrund gestartet wurde
+
+---
+
 ## [0.1.0-beta.30] - 2026-01-19
 
 ### Behoben
