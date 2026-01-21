@@ -14,6 +14,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.32] - 2026-01-19
+
+### Hinzugefügt
+- **Sofortige Notification bei Geofence-Events**: Push-Benachrichtigung auch bei geschlossener App
+  - "▶️ Arbeitszeit automatisch gestartet" beim Betreten der Zone
+  - "⏹️ Arbeitszeit automatisch gestoppt" beim Verlassen der Zone
+  - Erscheint sofort in der Statusleiste, auch wenn App nicht geöffnet ist
+  - Keine Notification bei ignorierten Events (Bounce-Protection)
+
+---
+
 ## [0.1.0-beta.31] - 2026-01-19
 
 ### Behoben

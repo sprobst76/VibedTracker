@@ -50,8 +50,14 @@ class GeofenceEventQueue {
   static const _queueKey = 'geofence_event_queue';
   static const _lastEventKey = 'geofence_last_event';
 
+  /// Ergebnis des Enqueue-Vorgangs
+  static const String resultAdded = 'added';
+  static const String resultDuplicate = 'duplicate';
+  static const String resultBounce = 'bounce';
+
   /// Fügt ein Event zur Queue hinzu (aus Background Isolate aufrufbar)
-  static Future<void> enqueue(GeofenceEventData event) async {
+  /// Gibt zurück ob Event hinzugefügt wurde oder warum nicht
+  static Future<String> enqueue(GeofenceEventData event) async {
     final prefs = await SharedPreferences.getInstance();
 
     // Aktuelle Queue laden
@@ -65,7 +71,7 @@ class GeofenceEventQueue {
       if (lastEvent.event == event.event &&
           lastEvent.zoneId == event.zoneId &&
           timeDiff < 30) {
-        return; // Duplikat ignorieren
+        return resultDuplicate; // Duplikat ignorieren
       }
 
       // Bounce-Protection: EXIT→ENTER oder ENTER→EXIT innerhalb von 5 Minuten ignorieren
@@ -73,7 +79,7 @@ class GeofenceEventQueue {
       if (lastEvent.zoneId == event.zoneId &&
           lastEvent.event != event.event &&
           timeDiff < 300) { // 5 Minuten
-        return; // Bounce ignorieren
+        return resultBounce; // Bounce ignorieren
       }
     }
 
@@ -86,6 +92,8 @@ class GeofenceEventQueue {
 
     // Letztes Event speichern für schnellen Zugriff
     await prefs.setString(_lastEventKey, jsonEncode(event.toJson()));
+
+    return resultAdded;
   }
 
   /// Holt alle Events aus der Queue
