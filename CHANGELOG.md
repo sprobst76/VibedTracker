@@ -14,6 +14,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.33] - 2026-01-22
+
+### Hinzugefügt
+- **Akkuoptimierung-Check**: Diagnose und Einstellungen im Geofence Debug Screen
+  - Zeigt ob Akkuoptimierung deaktiviert ist (erforderlich für zuverlässiges Geofencing)
+  - Button zum direkten Öffnen der Android-Einstellungen
+  - Erklärt warum der Geofence-Service von Android gekillt werden kann
+
+### Bekanntes Problem (extern)
+- **Geofence Service Crash**: Bug im `geofence_foreground_service` Package
+  - Wenn Android den Service wegen Speicherdruck killt, crasht er beim Neustart
+  - Workaround: Akkuoptimierung für VibedTracker deaktivieren
+  - Issue wurde an Package-Maintainer gemeldet
+
+---
+
 ## [0.1.0-beta.32] - 2026-01-19
 
 ### Hinzugefügt

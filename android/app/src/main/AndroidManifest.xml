@@ -20,6 +20,9 @@
     <!-- Wake lock for background processing -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
+    <!-- Request to ignore battery optimizations (keeps geofence service alive) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
     <application
         android:label="VibedTracker"
         android:name="${applicationName}"

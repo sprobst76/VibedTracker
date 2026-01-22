@@ -9,6 +9,7 @@ import '../models/geofence_zone.dart';
 import '../providers.dart';
 import '../services/geofence_event_queue.dart';
 import '../services/geofence_sync_service.dart';
+import '../services/battery_optimization_service.dart';
 import '../models/work_entry.dart';
 import '../theme/theme_colors.dart';
 import 'package:hive/hive.dart';
@@ -26,6 +27,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
   PermissionStatus? _locationAlwaysPermission;
   PermissionStatus? _notificationPermission;
   bool? _locationServiceEnabled;
+  bool? _batteryOptimizationDisabled;
 
   // Current position
   Position? _currentPosition;
@@ -113,6 +115,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       Permission.locationAlways.status,
       Permission.notification.status,
       Geolocator.isLocationServiceEnabled(),
+      BatteryOptimizationService.isIgnoringBatteryOptimizations(),
     ]);
 
     if (mounted) {
@@ -121,6 +124,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
         _locationAlwaysPermission = results[1] as PermissionStatus;
         _notificationPermission = results[2] as PermissionStatus;
         _locationServiceEnabled = results[3] as bool;
+        _batteryOptimizationDisabled = results[4] as bool;
       });
     }
   }
@@ -302,18 +306,44 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
               _locationServiceEnabled == true ? 'Aktiviert' : 'Deaktiviert',
               Icons.gps_fixed,
             ),
+            const Divider(),
+            _buildStatusRow(
+              'Akku-Optimierung',
+              _batteryOptimizationDisabled == true,
+              _batteryOptimizationDisabled == true ? 'Deaktiviert (gut)' : 'Aktiv (problematisch)',
+              Icons.battery_alert,
+            ),
             const SizedBox(height: 12),
             if (_locationAlwaysPermission != PermissionStatus.granted)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final status = await Permission.locationAlways.request();
+                    _addLog('Location Always angefordert: $status');
+                    await _loadPermissions();
+                  },
+                  icon: const Icon(Icons.settings),
+                  label: const Text('Location Always anfordern'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            if (_batteryOptimizationDisabled != true)
               ElevatedButton.icon(
                 onPressed: () async {
-                  final status = await Permission.locationAlways.request();
-                  _addLog('Location Always angefordert: $status');
+                  await BatteryOptimizationService.requestIgnoreBatteryOptimizations();
+                  _addLog('Akkuoptimierung-Einstellungen geöffnet');
+                  // Reload after a delay (user may have changed setting)
+                  await Future.delayed(const Duration(seconds: 2));
                   await _loadPermissions();
                 },
-                icon: const Icon(Icons.settings),
-                label: const Text('Location Always anfordern'),
+                icon: const Icon(Icons.battery_saver),
+                label: const Text('Akkuoptimierung deaktivieren'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
                 ),
               ),
