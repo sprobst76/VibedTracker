@@ -14,6 +14,7 @@ import 'projects_screen.dart';
 import 'security_settings_screen.dart';
 import 'sync_settings_screen.dart';
 import 'vacation_quota_screen.dart';
+import 'merge_entries_screen.dart';
 import '../theme/theme_colors.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
@@ -1042,6 +1043,32 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MergeEntriesScreen()),
+                );
+                if (result == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Einträge wurden zusammengeführt'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.merge_type),
+              label: const Text('Einträge zusammenführen'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Fragmentierte Einträge (z.B. durch GPS-Schwankungen) zusammenführen.',
+              style: TextStyle(fontSize: 11, color: context.subtleText),
             ),
           ],
         ),

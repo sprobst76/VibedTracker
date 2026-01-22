@@ -14,6 +14,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.35] - 2026-01-22
+
+### Hinzugefügt
+- **Einträge zusammenführen**: Neuer Screen zum Mergen fragmentierter Arbeitszeiten
+  - Erkennt automatisch zusammenführbare Einträge (gleicher Tag, gleicher Modus, max. 5 min Lücke)
+  - Zeigt Vorschau der Zusammenführung mit Zeitspannen
+  - Lücken zwischen Einträgen werden als Pausen erfasst
+  - Zugang über Einstellungen → Daten & Backup
+
+---
+
 ## [0.1.0-beta.34] - 2026-01-22
 
 ### Hinzugefügt
