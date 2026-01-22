@@ -195,6 +195,95 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
     });
   }
 
+  void _showHelpDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Geofence Hilfe'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Warum wird meine Arbeitszeit nicht automatisch erfasst?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Das kann mehrere Ursachen haben:',
+              ),
+              SizedBox(height: 12),
+
+              Text('1. Akkuoptimierung aktiv', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                'Android kann den Geofence-Service beenden um Akku zu sparen. '
+                'Deaktiviere die Akkuoptimierung für VibedTracker in den Berechtigungen.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 8),
+
+              Text('2. Location Always nicht erteilt', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                'Die App benötigt "Immer"-Standortzugriff um im Hintergrund zu funktionieren.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 8),
+
+              Text('3. Zone zu klein', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                'Der Radius sollte mindestens 80-100m sein. GPS ist nicht auf den Meter genau.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 16),
+
+              Divider(),
+              SizedBox(height: 8),
+              Text(
+                'Bekanntes Problem',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Das verwendete Geofence-Package hat einen Bug: Wenn Android den Service '
+                'wegen Speicherdruck beendet, crasht er beim Neustart. '
+                'Die Akkuoptimierung zu deaktivieren verhindert dieses Problem.',
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 16),
+
+              Text(
+                'Debug-Informationen',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '• Berechtigungen: Alle sollten grün sein\n'
+                '• Akku-Optimierung: Sollte "Deaktiviert (gut)" zeigen\n'
+                '• Position: Sollte deine aktuelle GPS-Position zeigen\n'
+                '• Zonen: Sollten deine konfigurierten Arbeitsorte zeigen\n'
+                '• Events: Zeigt wann ENTER/EXIT Events ausgelöst wurden',
+                style: TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Verstanden'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final zones = ref.watch(geofenceZonesProvider);
@@ -203,6 +292,11 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       appBar: AppBar(
         title: const Text('Geofence Debug'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: _showHelpDialog,
+            tooltip: 'Hilfe',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadAll,

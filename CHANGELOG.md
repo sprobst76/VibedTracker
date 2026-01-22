@@ -14,6 +14,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.34] - 2026-01-22
+
+### Hinzugefügt
+- **Hilfe-Dialog im Geofence Debug**: Erklärt häufige Probleme und Lösungen
+  - Warum Arbeitszeit nicht automatisch erfasst wird
+  - Bedeutung der Akkuoptimierung
+  - Bekanntes Package-Problem dokumentiert
+  - Debug-Informationen erklärt
+
+### Dokumentation
+- Bug Report für geofence_foreground_service Package erstellt
+- Alternativen-Analyse dokumentiert (native_geofence, flutter_background_geolocation)
+
+---
+
 ## [0.1.0-beta.33] - 2026-01-22
 
 ### Hinzugefügt
