@@ -27,7 +27,7 @@ class WorkEntryAdapter extends TypeAdapter<WorkEntry> {
     return WorkEntry(
       start: fields[0] as DateTime,
       stop: fields[1] as DateTime?,
-      pauses: (fields[2] as List?)?.cast<Pause>(),
+      pauses: (fields[2] as List?)?.cast<Pause>() ?? const [],
       notes: fields[3] as String?,
       tags: (fields[4] as List?)?.cast<String>(),
       projectId: fields[5] as String?,
