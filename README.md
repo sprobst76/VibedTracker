@@ -285,7 +285,22 @@ Siehe [SECURITY.md](SECURITY.md#responsible-disclosure) für Details.
 
 ## Lizenz
 
-Proprietär - Alle Rechte vorbehalten.
+**VibedTracker** is dual-licensed:
+
+### For Non-Commercial Use
+- **AGPL v3** (Free & Open Source)
+- Personal projects, educational use, open-source contributions
+- Modifications must be shared under AGPL v3
+- See [LICENSE](LICENSE)
+
+### For Commercial Use
+- **Commercial License** (Paid)
+- Sell as product/service, proprietary modifications, SaaS
+- Keep your code closed-source
+- No requirement to share modifications
+- See [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+
+**Need a Commercial License?** → Contact: `stefan@vibedtracker.de`
 
 ---
 

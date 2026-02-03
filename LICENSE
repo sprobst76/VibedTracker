@@ -1,21 +1,81 @@
-MIT License
+VIBEDTRACKER - DUAL LICENSE AGREEMENT
 
-Copyright (c) 2024-2026 Stefan Probst
+================================================================================
+PART 1: OPEN SOURCE LICENSE (AGPL v3)
+================================================================================
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+For NON-COMMERCIAL use (personal, educational, open-source projects):
+VibedTracker is licensed under the GNU Affero General Public License v3.0
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This means you can:
+- Use VibedTracker for personal projects
+- Modify and distribute the source code
+- Run it on your own infrastructure
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+With the condition that:
+- Any modifications must be shared under the same AGPL v3 license
+- If you offer VibedTracker as a service, users must have access to your
+  modified source code
+- The full AGPL v3 license text must be included in all distributions
+
+For the full AGPL v3 license text, see: https://www.gnu.org/licenses/agpl-3.0.html
+
+================================================================================
+PART 2: COMMERCIAL LICENSE
+================================================================================
+
+For COMMERCIAL use (selling services, closed-source modifications, SaaS):
+A separate Commercial License is required.
+
+Commercial License includes:
+✓ Right to use in commercial products/services
+✓ Right to keep modifications proprietary/closed-source
+✓ Right to run as SaaS or hosted service
+✓ No requirement to share source code modifications
+✓ Commercial support (optional)
+
+To obtain a Commercial License:
+Contact: stefan@vibedtracker.de
+Website: https://vibedtracker.de
+
+Commercial License terms will be negotiated based on:
+- Company size
+- Revenue model
+- Number of users/deployments
+- Support requirements
+
+================================================================================
+PART 3: DETERMINING YOUR LICENSE
+================================================================================
+
+You need a COMMERCIAL LICENSE if you:
+□ Sell VibedTracker as a product or service
+□ Use VibedTracker in a commercial SaaS platform
+□ Distribute closed-source modifications
+□ Keep your customizations proprietary
+□ Profit financially from VibedTracker
+
+You can use the AGPL v3 (FREE) license if you:
+□ Use VibedTracker for personal/educational purposes only
+□ Share all modifications under AGPL v3
+□ Don't offer VibedTracker as a paid service
+□ Are an individual developer or non-profit organization
+
+If unsure, please contact: stefan@vibedtracker.de
+
+================================================================================
+PART 4: WARRANTY DISCLAIMER
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+================================================================================
+Copyright (c) 2024-2026 Stefan Probst
+All Rights Reserved
+================================================================================
