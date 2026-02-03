@@ -63,6 +63,10 @@ class SettingsScreen extends ConsumerWidget {
           _buildSpecialDaysSection(context, ref, settings, notifier),
           const SizedBox(height: 16),
 
+          // Pomodoro Section
+          _buildPomodoroSection(context, ref, settings, notifier),
+          const SizedBox(height: 16),
+
           // Projekte Section
           _buildProjectsSection(context, ref),
           const SizedBox(height: 16),
@@ -897,6 +901,160 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPomodoroSection(BuildContext context, WidgetRef ref, Settings settings, SettingsNotifier notifier) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pomodoro Timer',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        settings.enablePomodoro
+                            ? 'Pomodoro-Technik aktiviert'
+                            : 'Pomodoro-Technik deaktiviert',
+                        style: TextStyle(fontSize: 12, color: context.subtleText),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: settings.enablePomodoro,
+                  onChanged: (value) => notifier.updatePomodoroEnabled(value),
+                ),
+              ],
+            ),
+            if (settings.enablePomodoro) ...[
+              const SizedBox(height: 16),
+              // Arbeitsphase
+              Row(
+                children: [
+                  const Icon(Icons.timer, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Arbeitsphase:'),
+                  ),
+                  DropdownButton<int>(
+                    value: settings.pomodoroWorkMinutes,
+                    items: [15, 20, 25, 30, 45, 60]
+                        .map((min) => DropdownMenuItem(
+                              value: min,
+                              child: Text('$min min'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) notifier.updatePomodoroWorkMinutes(value);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Kurze Pause
+              Row(
+                children: [
+                  const Icon(Icons.coffee, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Kurze Pause:'),
+                  ),
+                  DropdownButton<int>(
+                    value: settings.pomodoroShortBreakMinutes,
+                    items: [3, 5, 10, 15]
+                        .map((min) => DropdownMenuItem(
+                              value: min,
+                              child: Text('$min min'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) notifier.updatePomodoroShortBreakMinutes(value);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Lange Pause
+              Row(
+                children: [
+                  const Icon(Icons.hotel, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Lange Pause:'),
+                  ),
+                  DropdownButton<int>(
+                    value: settings.pomodoroLongBreakMinutes,
+                    items: [15, 20, 30, 45]
+                        .map((min) => DropdownMenuItem(
+                              value: min,
+                              child: Text('$min min'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) notifier.updatePomodoroLongBreakMinutes(value);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Auto-start
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Automatischer Start'),
+                        Text(
+                          'Nächste Phase automatisch starten',
+                          style: TextStyle(fontSize: 11, color: context.subtleText),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: settings.pomodoroAutoStart,
+                    onChanged: (value) => notifier.updatePomodoroAutoStart(value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Benachrichtigungen
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Benachrichtigungen'),
+                        Text(
+                          'Alarm wenn Phase endet',
+                          style: TextStyle(fontSize: 11, color: context.subtleText),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: settings.pomodoroShowNotifications,
+                    onChanged: (value) => notifier.updatePomodoroShowNotifications(value),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

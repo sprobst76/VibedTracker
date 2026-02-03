@@ -13,6 +13,7 @@ import 'models/location_point.dart';
 import 'models/project.dart';
 import 'models/work_exception.dart';
 import 'models/vacation_quota.dart';
+import 'models/pomodoro_session.dart';
 import 'screens/home_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/auth_screen.dart';
@@ -21,6 +22,7 @@ import 'theme/app_theme.dart';
 import 'providers.dart';
 import 'services/secure_storage_service.dart';
 import 'services/auth_service.dart';
+import 'services/pomodoro_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +44,7 @@ void main() async {
   Hive.registerAdapter(ProjectAdapter());
   Hive.registerAdapter(WorkExceptionAdapter());
   Hive.registerAdapter(VacationQuotaAdapter());
+  Hive.registerAdapter(PomodoroSessionAdapter());
 
   // Verschlüsselungsschlüssel laden/erstellen
   final secureStorage = SecureStorageService();
@@ -51,6 +54,9 @@ void main() async {
   // Boxen mit Verschlüsselung öffnen
   // Hinweis: Neue Installationen sind verschlüsselt, Migration für bestehende Daten separat
   await _openBoxes(cipher);
+
+  // Pomodoro Notification Service initialisieren
+  await PomodoroNotificationService().init();
 
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -67,6 +73,7 @@ Future<void> _openBoxes(HiveAesCipher cipher) async {
   await _openBoxSafe<Project>('projects', cipher);
   await _openBoxSafe<WorkException>('work_exceptions', cipher);
   await _openBoxSafe<VacationQuota>('vacation_quotas', cipher);
+  await _openBoxSafe<PomodoroSession>('pomodoro', cipher);
 }
 
 /// Öffnet eine Box sicher - versucht verschlüsselt, fällt auf unverschlüsselt zurück

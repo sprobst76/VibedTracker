@@ -33,13 +33,19 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       enableVacationCarryover: fields[13] as bool,
       christmasEveWorkFactor: fields[14] as double,
       newYearsEveWorkFactor: fields[15] as double,
+      enablePomodoro: fields[16] as bool,
+      pomodoroWorkMinutes: fields[17] as int,
+      pomodoroShortBreakMinutes: fields[18] as int,
+      pomodoroLongBreakMinutes: fields[19] as int,
+      pomodoroAutoStart: fields[20] as bool,
+      pomodoroShowNotifications: fields[21] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -71,7 +77,19 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(14)
       ..write(obj.christmasEveWorkFactor)
       ..writeByte(15)
-      ..write(obj.newYearsEveWorkFactor);
+      ..write(obj.newYearsEveWorkFactor)
+      ..writeByte(16)
+      ..write(obj.enablePomodoro)
+      ..writeByte(17)
+      ..write(obj.pomodoroWorkMinutes)
+      ..writeByte(18)
+      ..write(obj.pomodoroShortBreakMinutes)
+      ..writeByte(19)
+      ..write(obj.pomodoroLongBreakMinutes)
+      ..writeByte(20)
+      ..write(obj.pomodoroAutoStart)
+      ..writeByte(21)
+      ..write(obj.pomodoroShowNotifications);
   }
 
   @override

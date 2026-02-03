@@ -43,6 +43,18 @@ class Settings extends HiveObject {
   double christmasEveWorkFactor; // 24.12.: 0.0=frei, 0.5=halber Tag, 1.0=voll
   @HiveField(15)
   double newYearsEveWorkFactor; // 31.12.: 0.0=frei, 0.5=halber Tag, 1.0=voll
+  @HiveField(16)
+  bool enablePomodoro; // Pomodoro-Timer aktiviert
+  @HiveField(17)
+  int pomodoroWorkMinutes; // Dauer Arbeitsphase (Standard: 25)
+  @HiveField(18)
+  int pomodoroShortBreakMinutes; // Dauer kurze Pause (Standard: 5)
+  @HiveField(19)
+  int pomodoroLongBreakMinutes; // Dauer lange Pause (Standard: 15)
+  @HiveField(20)
+  bool pomodoroAutoStart; // Automatischer Start der nächsten Phase
+  @HiveField(21)
+  bool pomodoroShowNotifications; // Benachrichtigungen bei Phasenwechsel anzeigen
 
   Settings({
     this.weeklyHours = 40.0,
@@ -61,6 +73,12 @@ class Settings extends HiveObject {
     this.enableVacationCarryover = true, // Default: Übertrag erlaubt
     this.christmasEveWorkFactor = 0.5, // Default: halber Tag
     this.newYearsEveWorkFactor = 0.5, // Default: halber Tag
+    this.enablePomodoro = true, // Default: aktiviert
+    this.pomodoroWorkMinutes = 25, // Default: 25 Minuten
+    this.pomodoroShortBreakMinutes = 5, // Default: 5 Minuten
+    this.pomodoroLongBreakMinutes = 15, // Default: 15 Minuten
+    this.pomodoroAutoStart = false, // Default: manuell
+    this.pomodoroShowNotifications = true, // Default: Benachrichtigungen
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück

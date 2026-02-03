@@ -8,9 +8,11 @@ import 'models/pause.dart';
 import 'models/geofence_zone.dart';
 import 'models/project.dart';
 import 'models/vacation_quota.dart';
+import 'models/pomodoro_session.dart';
 import 'services/auth_service.dart';
 import 'services/encryption_service.dart';
 import 'services/cloud_sync_service.dart';
+import 'services/pomodoro_timer_service.dart';
 
 // Hive-Box-Provider
 final workBoxProvider = Provider((ref) => Hive.box<WorkEntry>('work'));
@@ -20,6 +22,7 @@ final weeklyHoursBoxProvider = Provider((ref) => Hive.box<WeeklyHoursPeriod>('we
 final geofenceZonesBoxProvider = Provider((ref) => Hive.box<GeofenceZone>('geofence_zones'));
 final projectsBoxProvider = Provider((ref) => Hive.box<Project>('projects'));
 final vacationQuotaBoxProvider = Provider((ref) => Hive.box<VacationQuota>('vacation_quotas'));
+final pomodoroBoxProvider = Provider((ref) => Hive.box<PomodoroSession>('pomodoro'));
 
 // Settings-Provider
 final settingsProvider = StateNotifierProvider<SettingsNotifier, Settings>((ref) {
@@ -119,6 +122,36 @@ class SettingsNotifier extends StateNotifier<Settings> {
 
   void updateNewYearsEveWorkFactor(double factor) {
     state = state..newYearsEveWorkFactor = factor.clamp(0.0, 1.0);
+    state.save();
+  }
+
+  void updatePomodoroEnabled(bool enabled) {
+    state = state..enablePomodoro = enabled;
+    state.save();
+  }
+
+  void updatePomodoroWorkMinutes(int minutes) {
+    state = state..pomodoroWorkMinutes = minutes.clamp(15, 60);
+    state.save();
+  }
+
+  void updatePomodoroShortBreakMinutes(int minutes) {
+    state = state..pomodoroShortBreakMinutes = minutes.clamp(1, 15);
+    state.save();
+  }
+
+  void updatePomodoroLongBreakMinutes(int minutes) {
+    state = state..pomodoroLongBreakMinutes = minutes.clamp(5, 30);
+    state.save();
+  }
+
+  void updatePomodoroAutoStart(bool enabled) {
+    state = state..pomodoroAutoStart = enabled;
+    state.save();
+  }
+
+  void updatePomodoroShowNotifications(bool enabled) {
+    state = state..pomodoroShowNotifications = enabled;
     state.save();
   }
 }
@@ -897,3 +930,18 @@ class SyncStatusNotifier extends StateNotifier<SyncStatus> {
 
   int get pendingCount => _sync.pendingCount;
 }
+
+// Pomodoro-Timer-Provider
+final pomodoroTimerProvider =
+    StateNotifierProvider<PomodoroTimerNotifier, PomodoroTimerState>((ref) {
+  final box = ref.watch(pomodoroBoxProvider);
+  final settings = ref.watch(settingsProvider);
+  final notifier = PomodoroTimerNotifier(box, settings);
+
+  // Update settings when they change
+  ref.listen(settingsProvider, (previous, current) {
+    notifier.updateSettings(current);
+  });
+
+  return notifier;
+});

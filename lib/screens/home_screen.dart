@@ -20,6 +20,7 @@ import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
+import '../widgets/pomodoro_card.dart';
 import '../services/location_tracking_service.dart';
 import 'calendar_overview_screen.dart';
 import '../widgets/responsive_shell.dart';
@@ -356,6 +357,8 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
               _buildMissingDaysCard(),
               const SizedBox(height: 16),
             ],
+            const PomodoroCard(),
+            const SizedBox(height: 16),
             _buildButtonRow(running, isPaused, last, activePause),
             const SizedBox(height: 16),
             if (running && last.pauses.isNotEmpty)
