@@ -111,10 +111,9 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
             .where((s) => s.isToday && s.phase == PomodoroPhase.work && s.completed)
             .length,
         sequenceProgress: allSessions
-                .where((s) => s.isToday)
-                .map((s) => s.sequenceNumber)
-                .fold<int>(0, (a, b) => a > b ? a : b) ??
-            0,
+            .where((s) => s.isToday)
+            .map((s) => s.sequenceNumber)
+            .fold<int>(0, (a, b) => a > b ? a : b),
       );
       return;
     }
@@ -125,10 +124,9 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
         .where((s) => s.isToday && s.phase == PomodoroPhase.work && s.completed)
         .length;
     final maxSequence = allSessions
-            .where((s) => s.isToday)
-            .map((s) => s.sequenceNumber)
-            .fold<int>(0, (a, b) => a > b ? a : b) ??
-        0;
+        .where((s) => s.isToday)
+        .map((s) => s.sequenceNumber)
+        .fold<int>(0, (a, b) => a > b ? a : b);
 
     // Calculate time remaining based on elapsed time
     final duration = _getDurationForPhase(currentSession.phase);

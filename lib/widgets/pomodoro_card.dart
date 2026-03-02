@@ -6,7 +6,7 @@ import '../services/pomodoro_timer_service.dart';
 
 /// Pomodoro Timer Card Widget für Home Screen
 class PomodoroCard extends ConsumerWidget {
-  const PomodoroCard({Key? key}) : super(key: key);
+  const PomodoroCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

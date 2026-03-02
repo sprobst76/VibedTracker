@@ -6,6 +6,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:hive/hive.dart';
 import '../providers.dart';
 import 'package:geofence_foreground_service/geofence_foreground_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../models/geofence_zone.dart';
+import '../services/battery_optimization_service.dart';
 import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
@@ -45,6 +48,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   List<DateTime> _missingDays = [];
   Timer? _refreshTimer;
   Timer? _serviceHealthTimer;
+  List<_SetupWarning> _setupWarnings = [];
 
   // Cloud Sync für Web
   SyncStatus _cloudSyncStatus = SyncStatus.idle;
@@ -114,6 +118,139 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Prüft alle Voraussetzungen für zuverlässiges Tracking und sammelt Warnungen.
+  Future<void> _checkSetupRequirements() async {
+    final warnings = <_SetupWarning>[];
+
+    // 1. Standort-Berechtigung "Immer" prüfen
+    final locationAlways = await Permission.locationAlways.status;
+    if (!locationAlways.isGranted) {
+      warnings.add(_SetupWarning(
+        icon: Icons.location_off,
+        title: 'Standort: "Immer erlauben" fehlt',
+        description: 'Geofencing funktioniert nur mit dauerhafter Standortberechtigung.',
+        severity: _WarningSeverity.critical,
+        action: 'Berechtigung erteilen',
+        onAction: () async {
+          await Permission.locationAlways.request();
+          await _checkSetupRequirements();
+        },
+      ));
+    }
+
+    // 2. Akkuoptimierung prüfen (Android only)
+    final batteryOk = await BatteryOptimizationService.isIgnoringBatteryOptimizations();
+    if (!batteryOk) {
+      warnings.add(_SetupWarning(
+        icon: Icons.battery_alert,
+        title: 'Akkuoptimierung aktiv',
+        description: 'Android kann den Tracking-Service beenden. Bitte Ausnahme aktivieren.',
+        severity: _WarningSeverity.warning,
+        action: 'Ausnahme aktivieren',
+        onAction: () async {
+          await BatteryOptimizationService.requestIgnoreBatteryOptimizations();
+          await _checkSetupRequirements();
+        },
+      ));
+    }
+
+    // 3. Geofence-Zonen prüfen
+    final zones = Hive.box<GeofenceZone>('geofence_zones');
+    if (zones.isEmpty) {
+      warnings.add(_SetupWarning(
+        icon: Icons.map_outlined,
+        title: 'Keine Geofence-Zone konfiguriert',
+        description: 'Richte eine Zone ein, damit die Zeiterfassung automatisch startet.',
+        severity: _WarningSeverity.info,
+        action: 'Zone einrichten',
+        onAction: () => Navigator.pushNamed(context, '/geofence-setup'),
+      ));
+    }
+
+    if (mounted) {
+      setState(() => _setupWarnings = warnings);
+    }
+  }
+
+  Color _warningBg(_WarningSeverity s) {
+    if (s == _WarningSeverity.critical) return context.errorBackground;
+    if (s == _WarningSeverity.warning) return context.warningBackground;
+    return context.infoBackground;
+  }
+
+  Color _warningFg(_WarningSeverity s) {
+    if (s == _WarningSeverity.critical) return context.errorForeground;
+    if (s == _WarningSeverity.warning) return context.warningForeground;
+    return context.infoForeground;
+  }
+
+  /// Zeigt Warnkarten für fehlende Einrichtungsschritte.
+  Widget _buildSetupWarnings() {
+    if (_setupWarnings.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        ..._setupWarnings.map((w) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Card(
+            color: _warningBg(w.severity),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(w.icon, size: 22, color: _warningFg(w.severity)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          w.title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: _warningFg(w.severity),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          w.description,
+                          style: TextStyle(fontSize: 12, color: _warningFg(w.severity)),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 30,
+                          child: FilledButton.tonal(
+                            onPressed: w.onAction,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
+                            child: Text(w.action),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => setState(
+                      () => _setupWarnings = _setupWarnings.where((x) => x != w).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
   Future<void> _initialize() async {
     setState(() {
       _isInitializing = true;
@@ -172,6 +309,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         await _initializeGeofence();
       } catch (e) {
         errors.add('Geofence: $e');
+      }
+
+      try {
+        await _checkSetupRequirements();
+      } catch (e) {
+        debugPrint('SetupCheck error: $e');
       }
 
       try {
@@ -376,6 +519,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             // Mobile: Vertical layout
             _buildStatusCard(running, isPaused, last),
             const SizedBox(height: 16),
+            if (_setupWarnings.isNotEmpty) _buildSetupWarnings(),
             if (_missingDays.isNotEmpty) ...[
               _buildMissingDaysCard(),
               const SizedBox(height: 16),
@@ -449,7 +593,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: content,
+      body: SafeArea(child: content),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEntryEditor(null),
         icon: const Icon(Icons.add),
@@ -1428,4 +1572,24 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     }
     return '${minutes}m';
   }
+}
+
+enum _WarningSeverity { critical, warning, info }
+
+class _SetupWarning {
+  final IconData icon;
+  final String title;
+  final String description;
+  final _WarningSeverity severity;
+  final String action;
+  final VoidCallback onAction;
+
+  const _SetupWarning({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.severity,
+    required this.action,
+    required this.onAction,
+  });
 }
