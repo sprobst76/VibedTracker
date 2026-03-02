@@ -61,10 +61,10 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _syncService = GeofenceSyncService(Hive.box<WorkEntry>('work'));
     _initialize();
-    // Auto-refresh alle 10 Sekunden für Geofence-Status (nur Mobile)
+    // Alle 30 Sekunden Queue verarbeiten + Status aktualisieren (nur Mobile)
     if (!kIsWeb) {
-      _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-        _refreshStatus();
+      _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _syncPendingEvents();
       });
       // Service-Health-Check alle 5 Minuten
       _serviceHealthTimer = Timer.periodic(const Duration(minutes: 5), (_) {
@@ -81,19 +81,6 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Aktualisiert nur den Status ohne volle Initialisierung
-  Future<void> _refreshStatus() async {
-    if (!mounted) return;
-    await _updateStatus();
-    // WorkList neu laden falls sich was geändert hat
-    final workBox = Hive.box<WorkEntry>('work');
-    final hasRunning = workBox.values.any((e) => e.stop == null);
-    final entries = ref.read(workListProvider);
-    final uiHasRunning = entries.isNotEmpty && entries.last.stop == null;
-    if (hasRunning != uiHasRunning) {
-      ref.invalidate(workListProvider);
-    }
-  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -441,6 +428,15 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     }
     await _updateStatus();
     await _updateWorkStatusNotification();
+    // Sicherheitsprüfung: WorkList-UI mit Hive abgleichen (auch ohne neue Events)
+    if (!mounted) return;
+    final workBox = Hive.box<WorkEntry>('work');
+    final hiveHasRunning = workBox.values.any((e) => e.stop == null);
+    final uiEntries = ref.read(workListProvider);
+    final uiHasRunning = uiEntries.any((e) => e.stop == null);
+    if (hiveHasRunning != uiHasRunning) {
+      ref.invalidate(workListProvider);
+    }
   }
 
   /// Aktualisiert die Status-Notification in der Symbolleiste
@@ -500,8 +496,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final entries = ref.watch(workListProvider);
-    final last = entries.isEmpty ? null : entries.last;
-    final running = last != null && last.stop == null;
+    // Robuste Erkennung: nicht entries.last, sondern gezielt den offenen Eintrag suchen
+    final openEntries = entries.where((e) => e.stop == null).toList();
+    final running = openEntries.isNotEmpty;
+    final last = running
+        ? openEntries.last
+        : (entries.isEmpty ? null : entries.last);
     final activePause = _getActivePause(last);
     final isPaused = activePause != null;
     final isWideScreen = MediaQuery.of(context).size.width >= 800;
