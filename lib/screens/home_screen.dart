@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive/hive.dart';
 import '../providers.dart';
+import 'package:geofence_foreground_service/geofence_foreground_service.dart';
 import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
@@ -43,6 +44,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   String? _initError;
   List<DateTime> _missingDays = [];
   Timer? _refreshTimer;
+  Timer? _serviceHealthTimer;
 
   // Cloud Sync für Web
   SyncStatus _cloudSyncStatus = SyncStatus.idle;
@@ -60,12 +62,17 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
         _refreshStatus();
       });
+      // Service-Health-Check alle 5 Minuten
+      _serviceHealthTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+        _checkAndRestartGeofenceService();
+      });
     }
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _serviceHealthTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -88,6 +95,22 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _syncPendingEvents();
+      // Service prüfen wenn App in den Vordergrund kommt
+      if (!kIsWeb) _checkAndRestartGeofenceService();
+    }
+  }
+
+  /// Prüft ob der Geofence-Service noch läuft, startet ihn bei Bedarf neu.
+  Future<void> _checkAndRestartGeofenceService() async {
+    if (!mounted) return;
+    try {
+      final isRunning = await GeofenceForegroundService().isForegroundServiceRunning();
+      if (!isRunning) {
+        debugPrint('Geofence service not running – restarting...');
+        await _initializeGeofence();
+      }
+    } catch (e) {
+      debugPrint('Service health check failed: $e');
     }
   }
 
