@@ -6,6 +6,19 @@ Zeiterfassung mit Geofence, Urlaub, Feiertagen & Cloud-Sync.
 
 ---
 
+## Screenshots
+
+<p float="left">
+  <img src="screenshots/01_home_screen.png" width="180" alt="Home Screen" />
+  <img src="screenshots/02_pomodoro_running.png" width="180" alt="Pomodoro Timer" />
+  <img src="screenshots/03_tracking_active.png" width="180" alt="Zeiterfassung aktiv" />
+  <img src="screenshots/04_report_screen.png" width="180" alt="Wochenbericht" />
+  <img src="screenshots/05_settings_screen.png" width="180" alt="Einstellungen" />
+  <img src="screenshots/06_calendar_screen.png" width="180" alt="Kalenderansicht" />
+</p>
+
+---
+
 ## Highlights
 
 | Feature | Beschreibung |
