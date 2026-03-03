@@ -74,13 +74,15 @@ class GeofenceEventQueue {
         return resultDuplicate; // Duplikat ignorieren
       }
 
-      // Bounce-Protection: EXIT→ENTER oder ENTER→EXIT innerhalb von 15 Minuten ignorieren
-      // Verhindert zerstückelte Einträge bei GPS-Fluktuation an der Zonengrenze
-      // 15 Minuten, da GPS-Drift oft länger als 5 Min außerhalb der Zone zeigt
-      if (lastEvent.zoneId == event.zoneId &&
-          lastEvent.event != event.event &&
-          timeDiff < 900) { // 15 Minuten
-        return resultBounce; // Bounce ignorieren
+      // Bounce-Protection: Nur ENTER→EXIT innerhalb von 20 Minuten ignorieren.
+      // GPS-Drift kann den User bis zu 20 Min außerhalb der Zone zeigen, ohne dass
+      // er wirklich gegangen ist. EXIT→ENTER wird NICHT gebounced, damit der User
+      // nach einem echten oder falschen Exit sofort wieder eingeloggt werden kann.
+      if (lastEvent.event == GeofenceEvent.enter &&
+          event.event == GeofenceEvent.exit &&
+          lastEvent.zoneId == event.zoneId &&
+          timeDiff < 1200) { // 20 Minuten
+        return resultBounce; // Bounce: zu früher Exit ignoriert
       }
     }
 

@@ -10,24 +10,30 @@ import 'geofence_callback.dart';
 
 class MyGeofenceService {
   /// Startet den Foreground-Service und fügt die konfigurierten Geofence-Zonen hinzu.
+  /// Wenn der Service bereits läuft, werden nur die Zonen neu registriert.
   Future<void> init({required double lat, required double lng}) async {
     final status = await Permission.locationAlways.request();
     if (!status.isGranted) {
       throw Exception('Standort-Berechtigung verweigert');
     }
 
-    final started = await GeofenceForegroundService().startGeofencingService(
-      notificationChannelId: 'time_tracker_channel',
-      contentTitle: 'TimeTracker im Hintergrund',
-      contentText: 'Zonenüberwachung aktiv',
-      serviceId: 1,
-      callbackDispatcher: callbackDispatcher,
-    );
-    if (!started) {
-      throw Exception('Geofencing-Service konnte nicht gestartet werden');
+    final alreadyRunning =
+        await GeofenceForegroundService().isForegroundServiceRunning();
+
+    if (!alreadyRunning) {
+      final started = await GeofenceForegroundService().startGeofencingService(
+        notificationChannelId: 'time_tracker_channel',
+        contentTitle: 'TimeTracker im Hintergrund',
+        contentText: 'Zonenüberwachung aktiv',
+        serviceId: 1,
+        callbackDispatcher: callbackDispatcher,
+      );
+      if (!started) {
+        throw Exception('Geofencing-Service konnte nicht gestartet werden');
+      }
     }
 
-    // Lade konfigurierte Zonen aus Hive
+    // Zonen immer neu registrieren (Service behält bestehende Zonen bei)
     await _registerConfiguredZones(lat, lng);
   }
 

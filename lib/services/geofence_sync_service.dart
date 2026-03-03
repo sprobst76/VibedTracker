@@ -109,6 +109,15 @@ class GeofenceSyncService {
       return;
     }
 
+    // Mindest-Sitzungsdauer: Erst nach 25 Minuten automatisch stoppen.
+    // GPS-Drift kann echte Sessions früh unterbrechen – kurze Sessions
+    // werden daher als Fehler gewertet und ignoriert.
+    final sessionDuration = event.timestamp.difference(runningEntry.start);
+    if (sessionDuration.inMinutes < 25) {
+      log('GeofenceSyncService: EXIT ignored – session too short (${sessionDuration.inMinutes} min < 25 min)');
+      return;
+    }
+
     // Arbeitszeit beenden
     final startTime = runningEntry.start;
     runningEntry.stop = event.timestamp;
