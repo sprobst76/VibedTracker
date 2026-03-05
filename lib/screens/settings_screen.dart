@@ -44,7 +44,7 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Einstellungen')),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Weekly Hours Section
@@ -588,7 +588,7 @@ class SettingsScreen extends ConsumerWidget {
             _buildDeveloperOptions(context, ref),
           ],
         ],
-      ),
+      )),
     );
   }
 

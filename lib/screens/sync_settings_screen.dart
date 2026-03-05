@@ -140,7 +140,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
       appBar: AppBar(
         title: const Text('Cloud Sync'),
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Account Status Card
@@ -169,7 +169,7 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
           // Info Card
           _buildInfoCard(),
         ],
-      ),
+      )),
     );
   }
 

@@ -207,7 +207,7 @@ class _MergeEntriesScreenState extends ConsumerState<MergeEntriesScreen> {
             ),
         ],
       ),
-      body: _mergeGroups.isEmpty
+      body: SafeArea(top: false, child: _mergeGroups.isEmpty
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -378,6 +378,7 @@ class _MergeEntriesScreenState extends ConsumerState<MergeEntriesScreen> {
                 );
               },
             ),
+      ),
     );
   }
 

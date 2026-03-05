@@ -34,7 +34,7 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
       appBar: AppBar(
         title: const Text('Arbeitszeit-Perioden'),
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Info Card
@@ -100,7 +100,7 @@ class _WeeklyHoursScreenState extends ConsumerState<WeeklyHoursScreen> {
           else
             ...periods.map((period) => _buildPeriodCard(period)),
         ],
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(null),
         icon: const Icon(Icons.add),

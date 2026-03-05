@@ -236,7 +236,7 @@ class _PassphraseSetupScreenState
       appBar: AppBar(
         title: const Text('Verschlüsselung'),
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(top: false, child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -302,7 +302,7 @@ class _PassphraseSetupScreenState
             ],
           ],
         ),
-      ),
+      )),
     );
   }
 
@@ -312,7 +312,7 @@ class _PassphraseSetupScreenState
         title: const Text('Recovery Codes'),
         automaticallyImplyLeading: false,
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(top: false, child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -428,7 +428,7 @@ class _PassphraseSetupScreenState
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 

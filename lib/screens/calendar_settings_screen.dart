@@ -85,7 +85,7 @@ class _CalendarSettingsScreenState extends ConsumerState<CalendarSettingsScreen>
       appBar: AppBar(
         title: const Text('Google Kalender'),
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Status Card
@@ -245,7 +245,7 @@ class _CalendarSettingsScreenState extends ConsumerState<CalendarSettingsScreen>
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 }

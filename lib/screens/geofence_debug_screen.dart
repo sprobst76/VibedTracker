@@ -309,7 +309,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: SafeArea(top: false, child: RefreshIndicator(
         onRefresh: _loadAll,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -355,7 +355,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
             const SizedBox(height: 32),
           ],
         ),
-      ),
+      )),
     );
   }
 

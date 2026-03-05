@@ -69,7 +69,7 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
       appBar: AppBar(
         title: const Text('Kalender'),
       ),
-      body: Column(
+      body: SafeArea(top: false, child: Column(
         children: [
           // Monatswähler
           _buildMonthSelector(),
@@ -85,7 +85,7 @@ class _CalendarOverviewScreenState extends ConsumerState<CalendarOverviewScreen>
           if (_selectedDay != null)
             _buildDayDetails(workByDay, vacationByDay, periodsNotifier),
         ],
-      ),
+      )),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddMenu(),
         child: const Icon(Icons.add),

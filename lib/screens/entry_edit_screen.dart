@@ -218,7 +218,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
             ),
         ],
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: EdgeInsets.only(
           top: 16,
           left: 16,
@@ -276,7 +276,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 

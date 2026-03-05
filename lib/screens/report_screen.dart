@@ -289,14 +289,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
           ],
         ),
       ),
-      body: TabBarView(
+      body: SafeArea(top: false, child: TabBarView(
         controller: _tabController,
         children: [
           _buildWeekView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
           _buildMonthView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
           _buildYearView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
         ],
-      ),
+      )),
     );
   }
 

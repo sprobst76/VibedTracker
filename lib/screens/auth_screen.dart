@@ -273,7 +273,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             onPressed: _cancelTOTP,
           ),
         ),
-        body: _buildTOTPInput(),
+        body: SafeArea(top: false, child: _buildTOTPInput()),
       );
     }
 
@@ -289,13 +289,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           ],
         ),
       ),
-      body: TabBarView(
+      body: SafeArea(top: false, child: TabBarView(
         controller: _tabController,
         children: [
           _buildLoginTab(),
           _buildRegisterTab(),
         ],
-      ),
+      )),
     );
   }
 

@@ -30,7 +30,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
       appBar: AppBar(
         title: const Text('Urlaubsanspruch pro Jahr'),
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Info Card
@@ -75,7 +75,7 @@ class _VacationQuotaScreenState extends ConsumerState<VacationQuotaScreen> {
           // Jahres-Liste
           ...years.map((year) => _buildYearCard(year, currentYear)),
         ],
-      ),
+      )),
     );
   }
 

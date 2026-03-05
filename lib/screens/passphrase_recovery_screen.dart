@@ -145,7 +145,7 @@ class _PassphraseRecoveryScreenState
         title: Text(_currentStep == 3 ? 'Neue Recovery Codes' : 'Passphrase wiederherstellen'),
         automaticallyImplyLeading: _currentStep != 3,
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(top: false, child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -194,7 +194,7 @@ class _PassphraseRecoveryScreenState
             if (_currentStep == 3) _buildStep3(),
           ],
         ),
-      ),
+      )),
     );
   }
 

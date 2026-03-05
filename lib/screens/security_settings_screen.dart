@@ -168,7 +168,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sicherheit')),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // App-Sperre
@@ -358,7 +358,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 

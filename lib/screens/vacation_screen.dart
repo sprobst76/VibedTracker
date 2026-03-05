@@ -97,7 +97,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: SafeArea(top: false, child: Column(
         children: [
           // Urlaubskontingent-Karte
           _buildVacationStatsCard(),
@@ -154,7 +154,7 @@ class _VacationScreenState extends ConsumerState<VacationScreen> {
             child: _buildVacationList(vacations, notifier),
           ),
         ],
-      ),
+      )),
       floatingActionButton: _selectedDay != null
           ? FloatingActionButton(
               onPressed: () => _showAddAbsenceDialog(notifier),

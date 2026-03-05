@@ -24,7 +24,7 @@ class ProjectsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           if (activeProjects.isEmpty && archivedProjects.isEmpty) ...[
@@ -90,7 +90,7 @@ class ProjectsScreen extends ConsumerWidget {
             ],
           ],
         ],
-      ),
+      )),
       floatingActionButton: (activeProjects.isNotEmpty || archivedProjects.isNotEmpty)
           ? FloatingActionButton(
               onPressed: () => _showAddProjectDialog(context, ref),

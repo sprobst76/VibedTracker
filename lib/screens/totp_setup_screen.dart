@@ -122,7 +122,7 @@ class _TOTPSetupScreenState extends ConsumerState<TOTPSetupScreen> {
       appBar: AppBar(
         title: const Text('2FA einrichten'),
       ),
-      body: _buildBody(),
+      body: SafeArea(top: false, child: _buildBody()),
     );
   }
 

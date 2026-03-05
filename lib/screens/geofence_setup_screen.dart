@@ -69,7 +69,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: SafeArea(top: false, child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Info Card
@@ -123,7 +123,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
           else
             ...zones.map((zone) => _buildZoneCard(zone)),
         ],
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(null),
         icon: const Icon(Icons.add_location),
