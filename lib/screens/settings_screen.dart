@@ -15,6 +15,7 @@ import 'security_settings_screen.dart';
 import 'sync_settings_screen.dart';
 import 'vacation_quota_screen.dart';
 import 'merge_entries_screen.dart';
+import 'excel_import_screen.dart';
 import '../theme/theme_colors.dart';
 import '../services/auth_service.dart';
 import '../services/cloud_sync_service.dart';
@@ -1226,6 +1227,30 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               'Fragmentierte Einträge (z.B. durch GPS-Schwankungen) zusammenführen.',
+              style: TextStyle(fontSize: 11, color: context.subtleText),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ExcelImportScreen()),
+                );
+                if (result == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Excel-Import abgeschlossen'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.table_chart),
+              label: const Text('Excel importieren'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'WorkingHours-Export (.xlsx) importieren und mit vorhandenen Daten zusammenführen.',
               style: TextStyle(fontSize: 11, color: context.subtleText),
             ),
           ],
