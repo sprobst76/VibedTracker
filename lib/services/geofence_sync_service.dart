@@ -9,10 +9,16 @@ import 'geofence_notification_service.dart';
 /// Wird im Foreground aufgerufen, wenn die App aktiv ist
 class GeofenceSyncService {
   final Box<WorkEntry> workBox;
-  final GeofenceNotificationService _notificationService =
-      GeofenceNotificationService();
+  // Nullable for test injection (pass null to skip notifications in tests)
+  final GeofenceNotificationService? _notificationService;
 
-  GeofenceSyncService(this.workBox);
+  /// [skipNotifications] = true disables all notifications (e.g. in tests)
+  GeofenceSyncService(this.workBox,
+      {GeofenceNotificationService? notificationService,
+      bool skipNotifications = false})
+      : _notificationService = skipNotifications
+            ? null
+            : (notificationService ?? GeofenceNotificationService());
 
   /// Verarbeitet alle ausstehenden Geofence-Events
   /// Gibt die Anzahl der verarbeiteten Events zurück
@@ -86,12 +92,14 @@ class GeofenceSyncService {
     log('GeofenceSyncService: Created new WorkEntry at ${event.timestamp}');
 
     // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
-    final zoneName = _getZoneName(event.zoneId);
-    await _notificationService.showAutoStartNotification(
-      workEntryKey: key,
-      timestamp: event.timestamp,
-      zoneName: zoneName,
-    );
+    if (_notificationService != null) {
+      final zoneName = _getZoneName(event.zoneId);
+      await _notificationService!.showAutoStartNotification(
+        workEntryKey: key,
+        timestamp: event.timestamp,
+        zoneName: zoneName,
+      );
+    }
   }
 
   /// Behandelt ein EXIT-Event: Laufende Arbeitszeit stoppen
@@ -125,14 +133,16 @@ class GeofenceSyncService {
     log('GeofenceSyncService: Stopped WorkEntry at ${event.timestamp}');
 
     // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
-    final zoneName = _getZoneName(event.zoneId);
-    final workedDuration = event.timestamp.difference(startTime);
-    await _notificationService.showAutoStopNotification(
-      workEntryKey: runningEntry.key as int,
-      timestamp: event.timestamp,
-      workedDuration: workedDuration,
-      zoneName: zoneName,
-    );
+    if (_notificationService != null) {
+      final zoneName = _getZoneName(event.zoneId);
+      final workedDuration = event.timestamp.difference(startTime);
+      await _notificationService!.showAutoStopNotification(
+        workEntryKey: runningEntry.key as int,
+        timestamp: event.timestamp,
+        workedDuration: workedDuration,
+        zoneName: zoneName,
+      );
+    }
   }
 
   /// Holt den Zone-Namen aus der Hive-Box

@@ -51,6 +51,11 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
   WorkEntry? _runningEntry;
   int? _lastSyncResult;
 
+  // GPS Simulator
+  TimeOfDay _simTime = const TimeOfDay(hour: 8, minute: 30);
+  bool _simRunning = false;
+  List<String> _simResults = [];
+
   @override
   void initState() {
     super.initState();
@@ -322,6 +327,10 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
             ),
             const SizedBox(height: 16),
 
+            // GPS Simulator
+            _buildSimulatorCard(),
+            const SizedBox(height: 16),
+
             // Permissions Section
             _buildPermissionsCard(),
             const SizedBox(height: 16),
@@ -356,6 +365,320 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
           ],
         ),
       )),
+    );
+  }
+
+  // ─── GPS Simulator ─────────────────────────────────────────────────────────
+
+  DateTime _simDateTime(int hour, int minute) {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, hour, minute);
+  }
+
+  Future<void> _injectSimEvent(GeofenceEvent type, {int? hour, int? minute}) async {
+    final zones = ref.read(geofenceZonesProvider);
+    final zoneId = zones.isNotEmpty ? zones.first.id : 'sim_zone';
+    final h = hour ?? _simTime.hour;
+    final m = minute ?? _simTime.minute;
+    final ts = _simDateTime(h, m);
+    final result = await GeofenceEventQueue.enqueue(
+      GeofenceEventData(zoneId: zoneId, event: type, timestamp: ts),
+    );
+    final label = type == GeofenceEvent.enter ? 'ENTER' : 'EXIT';
+    final timeStr = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    final emoji = result == GeofenceEventQueue.resultAdded
+        ? '✓'
+        : result == GeofenceEventQueue.resultBounce
+            ? '⟳ BOUNCE'
+            : '= DUP';
+    setState(() => _simResults.insert(0, '$emoji $label $timeStr ($result)'));
+    _addLog('Sim $label $timeStr → $result');
+    await _loadEventQueue();
+  }
+
+  Future<void> _runScenario(String name, List<Map<String, dynamic>> events) async {
+    if (_simRunning) return;
+    setState(() {
+      _simRunning = true;
+      _simResults = ['▶ Szenario: $name'];
+    });
+
+    try {
+      // Clear queue and work entries for a clean simulation
+      await GeofenceEventQueue.clear();
+      _addLog('Sim: Queue geleert');
+
+      // Clear open work entries (sim only removes entries from TODAY)
+      final workBox = Hive.box<WorkEntry>('work');
+      final today = DateTime.now();
+      final todayEntries = workBox.values.where((e) =>
+          e.start.year == today.year &&
+          e.start.month == today.month &&
+          e.start.day == today.day).toList();
+      for (final entry in todayEntries) {
+        await entry.delete();
+      }
+      if (todayEntries.isNotEmpty) {
+        _addLog('Sim: ${todayEntries.length} heutige Einträge gelöscht');
+      }
+
+      // Inject events
+      final zones = ref.read(geofenceZonesProvider);
+      final zoneId = zones.isNotEmpty ? zones.first.id : 'sim_zone';
+
+      for (final ev in events) {
+        final type = ev['type'] as GeofenceEvent;
+        final h = ev['hour'] as int;
+        final m = ev['minute'] as int;
+        final ts = _simDateTime(h, m);
+        final result = await GeofenceEventQueue.enqueue(
+          GeofenceEventData(zoneId: zoneId, event: type, timestamp: ts),
+        );
+        final label = type == GeofenceEvent.enter ? 'ENTER' : 'EXIT';
+        final timeStr = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+        final emoji = result == GeofenceEventQueue.resultAdded
+            ? '✓'
+            : result == GeofenceEventQueue.resultBounce
+                ? '⟳'
+                : '=';
+        setState(() => _simResults.insert(0, '$emoji $label $timeStr ($result)'));
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+
+      // Process
+      _addLog('Sim: Verarbeite Events...');
+      final syncService = GeofenceSyncService(workBox);
+      final processed = await syncService.syncPendingEvents();
+      setState(() => _simResults.insert(0, '→ $processed Events verarbeitet'));
+
+      // Show result
+      final newEntries = workBox.values.where((e) =>
+          e.start.year == today.year &&
+          e.start.month == today.month &&
+          e.start.day == today.day).toList()
+        ..sort((a, b) => a.start.compareTo(b.start));
+
+      setState(() => _simResults.insert(0, '📊 ${newEntries.length} Einträge heute:'));
+      for (final entry in newEntries) {
+        final start = '${entry.start.hour.toString().padLeft(2,'0')}:${entry.start.minute.toString().padLeft(2,'0')}';
+        final stop = entry.stop == null
+            ? 'offen'
+            : '${entry.stop!.hour.toString().padLeft(2,'0')}:${entry.stop!.minute.toString().padLeft(2,'0')}';
+        final dur = entry.stop == null
+            ? ''
+            : ' (${entry.stop!.difference(entry.start).inMinutes}min)';
+        setState(() => _simResults.insert(0, '  $start – $stop$dur'));
+      }
+
+      ref.invalidate(workListProvider);
+      await _loadAll();
+    } finally {
+      setState(() => _simRunning = false);
+    }
+  }
+
+  // Predefined scenarios
+  static const _scenarioNormal = [
+    {'type': GeofenceEvent.enter, 'hour': 8, 'minute': 30},
+    {'type': GeofenceEvent.exit, 'hour': 17, 'minute': 0},
+  ];
+
+  static const _scenarioDrift = [
+    {'type': GeofenceEvent.enter, 'hour': 8, 'minute': 30},
+    {'type': GeofenceEvent.exit, 'hour': 9, 'minute': 0},  // 30 min → stopped (Bug!)
+    {'type': GeofenceEvent.enter, 'hour': 9, 'minute': 5},
+    {'type': GeofenceEvent.exit, 'hour': 9, 'minute': 15}, // 10 min → bounce ✓
+    {'type': GeofenceEvent.exit, 'hour': 9, 'minute': 18}, // 13 min → bounce ✓
+    {'type': GeofenceEvent.exit, 'hour': 17, 'minute': 0},
+  ];
+
+  static const _scenarioLunch = [
+    {'type': GeofenceEvent.enter, 'hour': 8, 'minute': 30},
+    {'type': GeofenceEvent.exit, 'hour': 12, 'minute': 0},
+    {'type': GeofenceEvent.enter, 'hour': 13, 'minute': 0},
+    {'type': GeofenceEvent.exit, 'hour': 17, 'minute': 0},
+  ];
+
+  static const _scenarioShort = [
+    {'type': GeofenceEvent.enter, 'hour': 10, 'minute': 0},
+    {'type': GeofenceEvent.exit, 'hour': 10, 'minute': 15}, // 15 min → bounce (< 20 min)
+    {'type': GeofenceEvent.exit, 'hour': 10, 'minute': 22}, // 22 min → bounce (< 25 min min-dur)
+    {'type': GeofenceEvent.enter, 'hour': 14, 'minute': 0},
+    {'type': GeofenceEvent.exit, 'hour': 18, 'minute': 0},
+  ];
+
+  Widget _buildSimulatorCard() {
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.science, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  'GPS-Simulator',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (_simRunning)
+                  const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const Divider(),
+
+            // Manual event injection
+            const Text('Manuell injizieren:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 16),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _simTime,
+                    );
+                    if (picked != null) setState(() => _simTime = picked);
+                  },
+                  child: Text(
+                    '${_simTime.hour.toString().padLeft(2, '0')}:${_simTime.minute.toString().padLeft(2, '0')} Uhr heute',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: _simRunning ? null : () => _injectSimEvent(GeofenceEvent.enter),
+                  icon: const Icon(Icons.login, size: 16),
+                  label: const Text('ENTER'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.green),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _simRunning ? null : () => _injectSimEvent(GeofenceEvent.exit),
+                  icon: const Icon(Icons.logout, size: 16),
+                  label: const Text('EXIT'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+            const Text('Szenarien (heutige Einträge werden überschrieben):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _simButton(
+                  icon: Icons.work,
+                  label: 'Normaler Tag',
+                  subtitle: '08:30→17:00',
+                  color: Colors.blue,
+                  onPressed: () => _runScenario('Normaler Tag', _scenarioNormal),
+                ),
+                _simButton(
+                  icon: Icons.gps_off,
+                  label: 'GPS-Drift',
+                  subtitle: '+ false exits',
+                  color: Colors.orange,
+                  onPressed: () => _runScenario('GPS-Drift', _scenarioDrift),
+                ),
+                _simButton(
+                  icon: Icons.lunch_dining,
+                  label: 'Mittagspause',
+                  subtitle: '2 Sessions',
+                  color: Colors.purple,
+                  onPressed: () => _runScenario('Mittagspause', _scenarioLunch),
+                ),
+                _simButton(
+                  icon: Icons.directions_walk,
+                  label: 'Kurzbesuch',
+                  subtitle: '< 25 min',
+                  color: Colors.teal,
+                  onPressed: () => _runScenario('Kurzbesuch + echter Abend', _scenarioShort),
+                ),
+              ],
+            ),
+
+            // Results
+            if (_simResults.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const Text('Ergebnis:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 160),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _simResults.reversed.map((line) => Text(
+                      line,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: line.startsWith('⟳') || line.startsWith('=')
+                            ? Colors.orange
+                            : line.startsWith('📊') || line.startsWith('→')
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                      ),
+                    )).toList(),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _simResults = []),
+                child: const Text('Ergebnis löschen', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _simButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: 140,
+      child: OutlinedButton(
+        onPressed: _simRunning ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color.withAlpha(128)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Text(subtitle, style: const TextStyle(fontSize: 10)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
