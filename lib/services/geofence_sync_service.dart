@@ -1,7 +1,10 @@
 import 'dart:developer';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:geofence_foreground_service/geofence_foreground_service.dart';
 import 'package:hive/hive.dart';
 import '../models/work_entry.dart';
 import '../models/geofence_zone.dart';
+import 'background_sync_service.dart';
 import 'geofence_event_queue.dart';
 import 'geofence_notification_service.dart';
 
@@ -241,11 +244,23 @@ class GeofenceSyncService {
     final isTracking = this.isTracking();
     final pendingEvents = await GeofenceEventQueue.getUnprocessedEvents();
 
+    bool isServiceRunning = false;
+    if (!kIsWeb) {
+      try {
+        isServiceRunning =
+            await GeofenceForegroundService().isForegroundServiceRunning();
+      } catch (_) {}
+    }
+
+    final lastBgSync = await BackgroundSyncService.getLastSyncTime();
+
     return GeofenceStatus(
       isInZone: isInZone,
       isTracking: isTracking,
       lastEvent: lastEvent,
       pendingEventsCount: pendingEvents.length,
+      isServiceRunning: isServiceRunning,
+      lastBackgroundSync: lastBgSync,
     );
   }
 }
@@ -256,12 +271,16 @@ class GeofenceStatus {
   final bool isTracking;
   final GeofenceEventData? lastEvent;
   final int pendingEventsCount;
+  final bool isServiceRunning;
+  final DateTime? lastBackgroundSync;
 
   GeofenceStatus({
     required this.isInZone,
     required this.isTracking,
     this.lastEvent,
     required this.pendingEventsCount,
+    this.isServiceRunning = false,
+    this.lastBackgroundSync,
   });
 
   String get statusText {

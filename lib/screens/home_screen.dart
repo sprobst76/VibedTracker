@@ -1224,69 +1224,141 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildGeofenceInfo() {
     final status = _geofenceStatus!;
+    final serviceDown = !status.isServiceRunning;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on,
-                  color: status.isInZone ? Colors.green : Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Geofence Status',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: status.isInZone ? context.successBackground : context.neutralBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status.isInZone ? 'Im Bereich' : 'Außerhalb',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: status.isInZone ? context.successForeground : context.neutralForeground,
+    return Column(
+      children: [
+        // Roter Banner wenn Service nicht läuft
+        if (serviceDown)
+          Card(
+            color: context.errorBackground,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: context.errorForeground, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Tracking-Service inaktiv – Geofencing läuft nicht',
+                      style: TextStyle(
+                        color: context.errorForeground,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            if (status.lastEvent != null) ...[
-              const Divider(),
-              Text(
-                'Letztes Event: ${status.lastEvent!.event == GeofenceEvent.enter ? 'Betreten' : 'Verlassen'}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-              Text(
-                _formatDateTime(status.lastEvent!.timestamp),
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            ],
-            if (status.pendingEventsCount > 0) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.sync, size: 16, color: Colors.orange.shade700),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${status.pendingEventsCount} Event(s) ausstehend',
-                    style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                  TextButton(
+                    onPressed: _checkAndRestartGeofenceService,
+                    style: TextButton.styleFrom(
+                      foregroundColor: context.errorForeground,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Neu starten'),
                   ),
                 ],
               ),
-            ],
-          ],
+            ),
+          ),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      color: status.isInZone ? Colors.green : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Geofence Status',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    // Service-Indikator
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: serviceDown ? Colors.red : Colors.green,
+                      ),
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: status.isInZone
+                            ? context.successBackground
+                            : context.neutralBackground,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        status.isInZone ? 'Im Bereich' : 'Außerhalb',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: status.isInZone
+                              ? context.successForeground
+                              : context.neutralForeground,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (status.lastEvent != null) ...[
+                  const Divider(),
+                  Text(
+                    'Letztes Event: ${status.lastEvent!.event == GeofenceEvent.enter ? 'Betreten' : 'Verlassen'} · ${_formatRelative(status.lastEvent!.timestamp)}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+                if (status.lastBackgroundSync != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.sync, size: 14, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Letzter Hintergrund-Sync: ${_formatRelative(status.lastBackgroundSync!)}',
+                        style:
+                            TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+                if (status.pendingEventsCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.sync, size: 16, color: Colors.orange.shade700),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${status.pendingEventsCount} Event(s) ausstehend',
+                        style: TextStyle(
+                            color: Colors.orange.shade700, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
+  }
+
+  String _formatRelative(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'gerade eben';
+    if (diff.inMinutes < 60) return 'vor ${diff.inMinutes} Min.';
+    if (diff.inHours < 24) return 'vor ${diff.inHours} Std.';
+    return _formatDateTime(dt);
   }
 
   Widget _buildErrorCard() {

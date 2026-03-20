@@ -23,6 +23,7 @@ import 'providers.dart';
 import 'services/secure_storage_service.dart';
 import 'services/auth_service.dart';
 import 'services/pomodoro_notification_service.dart';
+import 'services/background_sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,10 @@ void main() async {
 
   // Pomodoro Notification Service initialisieren
   await PomodoroNotificationService().init();
+
+  // WorkManager für periodische Hintergrund-Synchronisation initialisieren
+  await BackgroundSyncService.init();
+  await BackgroundSyncService.registerPeriodicSync();
 
   runApp(const ProviderScope(child: MyApp()));
 }
