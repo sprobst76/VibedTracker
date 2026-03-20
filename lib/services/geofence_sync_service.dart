@@ -20,6 +20,11 @@ class GeofenceSyncService {
             ? null
             : (notificationService ?? GeofenceNotificationService());
 
+  /// Re-Entry-Merge: Wenn ein ENTER nach einem GPS-bedingten Fehl-Exit
+  /// innerhalb dieser Zeitspanne nach dem Stop kommt, wird die Session
+  /// wieder geöffnet statt eine neue zu erstellen.
+  static const _mergeGracePeriod = Duration(minutes: 25);
+
   /// Verarbeitet alle ausstehenden Geofence-Events
   /// Gibt die Anzahl der verarbeiteten Events zurück
   Future<int> syncPendingEvents() async {
@@ -63,13 +68,26 @@ class GeofenceSyncService {
     }
   }
 
-  /// Behandelt ein ENTER-Event: Neue Arbeitszeit starten
+  /// Behandelt ein ENTER-Event: Neue Arbeitszeit starten (oder Session fortsetzen)
   Future<void> _handleEnter(GeofenceEventData event) async {
     // Prüfen ob bereits eine laufende Arbeitszeit existiert
     final runningEntry = _getRunningEntry();
 
     if (runningEntry != null) {
       log('GeofenceSyncService: Already running entry exists, skipping ENTER');
+      return;
+    }
+
+    // Re-Entry-Merge: Wurde die Session kürzlich durch GPS-Drift gestoppt?
+    // Wenn der Re-Entry innerhalb der Grace-Period nach dem letzten Stop liegt,
+    // wird die vorhandene Session wieder geöffnet statt eine neue zu starten.
+    final recentStopped = _getRecentlyStoppedEntry(event.timestamp);
+    if (recentStopped != null) {
+      final gap = event.timestamp.difference(recentStopped.stop!);
+      log('GeofenceSyncService: Re-entry ${gap.inMinutes}min after stop – '
+          'merging back into session started at ${recentStopped.start}');
+      recentStopped.stop = null;
+      await recentStopped.save();
       return;
     }
 
@@ -172,6 +190,24 @@ class GeofenceSyncService {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Findet einen kürzlich gestoppten Eintrag für den Re-Entry-Merge.
+  /// Gibt den zuletzt gestoppten Eintrag zurück, dessen Stop-Zeit innerhalb
+  /// der Grace-Period vor [enterTime] liegt – oder null wenn keiner passt.
+  WorkEntry? _getRecentlyStoppedEntry(DateTime enterTime) {
+    final candidates = workBox.values
+        .where((e) => e.stop != null)
+        .toList()
+      ..sort((a, b) => b.stop!.compareTo(a.stop!)); // neueste zuerst
+
+    for (final entry in candidates) {
+      final gap = enterTime.difference(entry.stop!);
+      if (gap >= Duration.zero && gap <= _mergeGracePeriod) {
+        return entry;
+      }
+    }
+    return null;
   }
 
   /// Prüft ob aktuell eine Arbeitszeit läuft

@@ -128,32 +128,42 @@ void main() {
           reason: 'Nur der echte Exit um 17:00 darf gestoppt haben');
     });
 
-    test('GPS-Drift: Kurze Exits + echte Session ≥ 25 min', () async {
+    test('GPS-Drift-Stop + Re-Entry < 25 min → Session wird gemergt', () async {
       await _enter(_hm(9, 0));
-      await _exit(_hm(9, 8));   // Bounce
-      await _exit(_hm(9, 15));  // Bounce
-      await _exit(_hm(9, 30));  // > 20 min → kein Bounce, aber 30 min → gestoppt!
+      await _exit(_hm(9, 8));   // Bounce (< 20 min)
+      await _exit(_hm(9, 15));  // Bounce (< 20 min)
+      await _exit(_hm(9, 30));  // > 20 min → kein Bounce, Session gestoppt
 
-      // Problem: 30 min > Bounce-Schwelle UND > Min-Session. Entry gestoppt.
-      // Das ist die bekannte Schwäche: Exit nach 20-25 min fälscht Session.
-      final entry = _all.first;
-      // Mit aktuellem System: 30 min > 25 min → gestoppt (problematisch)
-      // Dieser Test dokumentiert das aktuelle Verhalten:
-      expect(entry.stop, isNotNull,
-          reason: 'Bekanntes Problem: GPS-Drift nach 30 min stoppt Session');
-    });
-
-    test('Nach GPS-Drift-Stop kann Re-Entry neue Session starten', () async {
-      await _enter(_hm(9, 0));
-      await _exit(_hm(9, 30)); // Stoppt Session (30 min, kein Bounce)
-
-      // Re-Entry nach kurzer Pause
+      // Re-Entry 5 min nach dem Fehl-Stop → Grace-Period (< 25 min): MERGE
       await _enter(_hm(9, 35));
       await _exit(_hm(17, 0));
 
-      // Zwei Entries (1x 30min + 1x 7h25min)
-      expect(_all.length, 2);
+      // Session wurde fortgesetzt: nur 1 Entry (09:00–17:00)
+      expect(_all.length, 1, reason: 'Re-Entry innerhalb Grace-Period mergt zurück');
+      expect(_all.first.start, _hm(9, 0));
+      expect(_all.first.stop, _hm(17, 0));
+      expect(_running, isEmpty);
+    });
+
+    test('Re-Entry nach echter langer Pause (≥ 25 min) → neue Session', () async {
+      await _enter(_hm(8, 0));
+      await _exit(_hm(12, 0));  // 4h → gestoppt
+
+      // 30 min Pause > Grace-Period → kein Merge
+      await _enter(_hm(12, 30));
+      await _exit(_hm(17, 0));
+
+      expect(_all.length, 2, reason: '30 min Pause > 25 min Grace → separater Entry');
       expect(_stopped.length, 2);
+    });
+
+    test('Drift-Exit ohne Re-Entry: Session bleibt gestoppt', () async {
+      await _enter(_hm(9, 0));
+      await _exit(_hm(9, 30)); // Stoppt Session (30 min, kein Bounce)
+
+      // Kein Re-Entry → Session bleibt gestoppt
+      expect(_all.length, 1);
+      expect(_all.first.stop, _hm(9, 30));
     });
   });
 
