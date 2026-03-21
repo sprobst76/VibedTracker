@@ -1,9 +1,11 @@
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/pomodoro_session.dart';
+import 'notification_dispatcher.dart';
 
-/// Service für Pomodoro-Timer Benachrichtigungen
-/// Zeigt Benachrichtigungen wenn eine Phase endet
+/// Service für Pomodoro-Timer Benachrichtigungen.
+/// Zeigt Benachrichtigungen wenn eine Phase endet.
 class PomodoroNotificationService {
   static final PomodoroNotificationService _instance =
       PomodoroNotificationService._internal();
@@ -11,54 +13,38 @@ class PomodoroNotificationService {
   factory PomodoroNotificationService() => _instance;
   PomodoroNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
-
   bool _initialized = false;
 
-  // Notification IDs
-  static const int _pomodoroEndedId = 400;
-  static const int _breakEndedId = 401;
+  // Notification IDs (420-429 reserviert für PomodoroNotificationService)
+  static const int _pomodoroEndedId = 420;
+  static const int _breakEndedId    = 421;
 
-  // Channel ID
   static const String _channelId = 'pomodoro_timer_channel';
 
-  /// Initialisiert den Service
+  FlutterLocalNotificationsPlugin get _plugin =>
+      NotificationDispatcher.instance.plugin;
+
+  /// Initialisiert Channel (idempotent).
   Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
+    await NotificationDispatcher.instance.createChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        'Pomodoro Timer',
+        description: 'Benachrichtigungen wenn Pomodoro-Phasen enden',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      ),
     );
-
-    await _notifications.initialize(initSettings);
-
-    // High-Priority Channel für Pomodoro-Benachrichtigungen
-    const channel = AndroidNotificationChannel(
-      _channelId,
-      'Pomodoro Timer',
-      description: 'Benachrichtigungen wenn Pomodoro-Phasen enden',
-      importance: Importance.high, // Mit Sound und Vibration
-      playSound: true,
-      enableVibration: true,
-      showBadge: true,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
 
     _initialized = true;
-    debugPrint('PomodoroNotificationService initialized');
+    log('PomodoroNotificationService initialized', name: 'PomodoroNotificationService');
   }
 
-  /// Zeigt Benachrichtigung wenn eine Phase endet
+  /// Zeigt Benachrichtigung wenn eine Phase endet.
   static Future<void> showPhaseCompleted({
     required PomodoroPhase phase,
   }) async {
@@ -92,7 +78,7 @@ class PomodoroNotificationService {
     }
 
     try {
-      await service._notifications.show(
+      await service._plugin.show(
         notificationId,
         title,
         body,
@@ -100,8 +86,7 @@ class PomodoroNotificationService {
           android: AndroidNotificationDetails(
             _channelId,
             'Pomodoro Timer',
-            channelDescription:
-                'Benachrichtigungen wenn Pomodoro-Phasen enden',
+            channelDescription: 'Benachrichtigungen wenn Pomodoro-Phasen enden',
             importance: Importance.high,
             priority: Priority.high,
             playSound: true,
@@ -118,16 +103,15 @@ class PomodoroNotificationService {
           ),
         ),
       );
-      debugPrint('Pomodoro phase completed notification shown: $phase');
+      log('Pomodoro phase completed: $phase', name: 'PomodoroNotificationService');
     } catch (e) {
-      debugPrint('Error showing pomodoro notification: $e');
+      log('Error showing pomodoro notification: $e', name: 'PomodoroNotificationService');
     }
   }
 
-  /// Entfernt alle Pomodoro-Benachrichtigungen
+  /// Entfernt alle Pomodoro-Benachrichtigungen.
   Future<void> cancelAll() async {
-    await _notifications.cancel(_pomodoroEndedId);
-    await _notifications.cancel(_breakEndedId);
-    debugPrint('All pomodoro notifications cancelled');
+    await _plugin.cancel(_pomodoroEndedId);
+    await _plugin.cancel(_breakEndedId);
   }
 }

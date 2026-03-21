@@ -17,9 +17,9 @@ class ReminderService {
   bool _initialized = false;
   bool _tzInitialized = false;
 
-  // Notification IDs
-  static const int _dailyReminderId        = 400;
-  static const int _targetReachedId        = 401;
+  // Notification IDs (410-419 reserviert für ReminderService)
+  static const int _dailyReminderId        = 410;
+  static const int _targetReachedId        = 411;
 
   // SharedPreferences key for "target already notified today"
   static const String _targetNotifiedDayKey = 'reminder_target_reached_day';
