@@ -23,13 +23,14 @@ class GeofenceZoneAdapter extends TypeAdapter<GeofenceZone> {
       longitude: fields[3] as double,
       radius: fields[4] as double,
       isActive: fields[5] as bool,
+      defaultWorkModeIndex: fields[6] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, GeofenceZone obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class GeofenceZoneAdapter extends TypeAdapter<GeofenceZone> {
       ..writeByte(4)
       ..write(obj.radius)
       ..writeByte(5)
-      ..write(obj.isActive);
+      ..write(obj.isActive)
+      ..writeByte(6)
+      ..write(obj.defaultWorkModeIndex);
   }
 
   @override

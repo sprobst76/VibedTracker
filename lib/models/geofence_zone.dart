@@ -23,6 +23,10 @@ class GeofenceZone extends HiveObject {
   @HiveField(5)
   bool isActive;
 
+  /// Standard-WorkMode wenn diese Zone betreten wird (Index → WorkMode.values)
+  @HiveField(6)
+  int defaultWorkModeIndex;
+
   GeofenceZone({
     required this.id,
     required this.name,
@@ -30,6 +34,7 @@ class GeofenceZone extends HiveObject {
     required this.longitude,
     this.radius = 150.0,
     this.isActive = true,
+    this.defaultWorkModeIndex = 0,
   });
 
   /// Prüft ob ein Punkt innerhalb des Geofence liegt

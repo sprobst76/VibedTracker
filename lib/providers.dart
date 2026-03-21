@@ -560,12 +560,14 @@ class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
     double? newLongitude,
     double? newRadius,
     bool? newIsActive,
+    int? newDefaultWorkModeIndex,
   }) async {
     if (newName != null) zone.name = newName;
     if (newLatitude != null) zone.latitude = newLatitude;
     if (newLongitude != null) zone.longitude = newLongitude;
     if (newRadius != null) zone.radius = newRadius;
     if (newIsActive != null) zone.isActive = newIsActive;
+    if (newDefaultWorkModeIndex != null) zone.defaultWorkModeIndex = newDefaultWorkModeIndex;
     await zone.save();
     _refresh();
   }

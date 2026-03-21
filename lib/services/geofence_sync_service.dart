@@ -137,8 +137,12 @@ class GeofenceSyncService {
       return;
     }
 
-    // Neue Arbeitszeit erstellen
-    final entry = WorkEntry(start: event.timestamp);
+    // Neue Arbeitszeit erstellen – WorkMode von Zone übernehmen
+    final zoneWorkModeIndex = _getZoneDefaultWorkModeIndex(event.zoneId);
+    final entry = WorkEntry(
+      start: event.timestamp,
+      workModeIndex: zoneWorkModeIndex,
+    );
     final key = await workBox.add(entry);
     log('GeofenceSyncService: Created new WorkEntry at ${event.timestamp}');
 
@@ -225,6 +229,20 @@ class GeofenceSyncService {
         workedDuration: workedDuration,
         zoneName: zoneName,
       );
+    }
+  }
+
+  /// Holt den Standard-WorkMode-Index der Zone (0 = normal falls nicht gefunden)
+  int _getZoneDefaultWorkModeIndex(String zoneId) {
+    try {
+      final zonesBox = Hive.box<GeofenceZone>('geofence_zones');
+      final zone = zonesBox.values.firstWhere(
+        (z) => z.id == zoneId,
+        orElse: () => GeofenceZone(id: '', name: '', latitude: 0, longitude: 0),
+      );
+      return zone.defaultWorkModeIndex;
+    } catch (e) {
+      return 0;
     }
   }
 

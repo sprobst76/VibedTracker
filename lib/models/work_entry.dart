@@ -6,11 +6,12 @@ part 'work_entry.g.dart';
 
 /// Arbeitsmodi für Kategorisierung der Arbeitszeit
 enum WorkMode {
-  normal,    // 0 - Reguläre Arbeit
-  deepWork,  // 1 - Deep Work / Fokuszeit
-  meeting,   // 2 - Meeting
-  support,   // 3 - Support
-  admin,     // 4 - Administration
+  normal,      // 0 - Reguläre Arbeit
+  deepWork,    // 1 - Deep Work / Fokuszeit
+  meeting,     // 2 - Meeting
+  support,     // 3 - Support
+  admin,       // 4 - Administration
+  homeOffice,  // 5 - Homeoffice
 }
 
 extension WorkModeExtension on WorkMode {
@@ -26,6 +27,8 @@ extension WorkModeExtension on WorkMode {
         return 'Support';
       case WorkMode.admin:
         return 'Administration';
+      case WorkMode.homeOffice:
+        return 'Homeoffice';
     }
   }
 
@@ -41,6 +44,8 @@ extension WorkModeExtension on WorkMode {
         return Icons.support_agent;
       case WorkMode.admin:
         return Icons.admin_panel_settings;
+      case WorkMode.homeOffice:
+        return Icons.home_work;
     }
   }
 
@@ -56,6 +61,8 @@ extension WorkModeExtension on WorkMode {
         return Colors.green;
       case WorkMode.admin:
         return Colors.grey;
+      case WorkMode.homeOffice:
+        return Colors.teal;
     }
   }
 
@@ -73,6 +80,8 @@ extension WorkModeExtension on WorkMode {
         return isDark ? Colors.green.shade300 : Colors.green;
       case WorkMode.admin:
         return isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+      case WorkMode.homeOffice:
+        return isDark ? Colors.teal.shade300 : Colors.teal;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/geofence_zone.dart';
+import '../models/work_entry.dart';
 import '../providers.dart';
 import '../widgets/map_picker_widget.dart';
 import 'geofence_map_view_screen.dart';
@@ -132,20 +133,26 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
     );
   }
 
+  WorkMode _zoneWorkMode(GeofenceZone zone) {
+    final idx = zone.defaultWorkModeIndex.clamp(0, WorkMode.values.length - 1);
+    return WorkMode.values[idx];
+  }
+
   Widget _buildZoneCard(GeofenceZone zone) {
+    final workMode = _zoneWorkMode(zone);
     return Card(
       color: zone.isActive ? Colors.green.shade50 : null,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: zone.isActive ? Colors.green : Colors.grey,
-          child: const Icon(Icons.location_on, color: Colors.white),
+          child: Icon(workMode.icon, color: Colors.white),
         ),
         title: Text(
           zone.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          'Radius: ${zone.radius.round()}m\n'
+          '${workMode.label} · Radius: ${zone.radius.round()}m\n'
           '${zone.latitude.toStringAsFixed(5)}, ${zone.longitude.toStringAsFixed(5)}',
         ),
         isThreeLine: true,
@@ -221,6 +228,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
     double longitude = zone?.longitude ?? _currentPosition?.longitude ?? 0;
     double radius = zone?.radius ?? 150;
     bool isActive = zone?.isActive ?? true;
+    int selectedWorkModeIndex = zone?.defaultWorkModeIndex ?? 0;
 
     final nameController = TextEditingController(text: name);
     final latController = TextEditingController(text: latitude.toString());
@@ -359,6 +367,31 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // Zone-Typ / Standard-WorkMode
+                const Text('Zonentyp', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [WorkMode.normal, WorkMode.homeOffice].map((mode) {
+                    final selected = selectedWorkModeIndex == mode.index;
+                    return ChoiceChip(
+                      avatar: Icon(mode.icon, size: 18,
+                          color: selected ? Colors.white : mode.color),
+                      label: Text(mode.label),
+                      selected: selected,
+                      selectedColor: mode.color,
+                      labelStyle: TextStyle(
+                        color: selected ? Colors.white : null,
+                        fontWeight: selected ? FontWeight.bold : null,
+                      ),
+                      onSelected: (_) {
+                        setDialogState(() => selectedWorkModeIndex = mode.index);
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+
                 // Active Toggle
                 Row(
                   children: [
@@ -394,6 +427,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           newLongitude: longitude,
                           newRadius: radius,
                           newIsActive: isActive,
+                          newDefaultWorkModeIndex: selectedWorkModeIndex,
                         );
                       } else {
                         await notifier.addZone(GeofenceZone(
@@ -403,6 +437,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           longitude: longitude,
                           radius: radius,
                           isActive: isActive,
+                          defaultWorkModeIndex: selectedWorkModeIndex,
                         ));
                       }
                       if (context.mounted) Navigator.pop(context);
