@@ -12,6 +12,7 @@ import '../services/battery_optimization_service.dart';
 import '../services/geofence_service.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/geofence_event_queue.dart';
+import '../services/background_sync_service.dart';
 import '../services/geofence_notification_service.dart';
 import '../services/work_status_notification_service.dart';
 import '../services/reminder_service.dart';
@@ -85,9 +86,23 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _syncPendingEvents();
+      _syncPendingEventsAndCheckFlag();
       // Service prüfen wenn App in den Vordergrund kommt
-      if (!kIsWeb) _checkAndRestartGeofenceService();
+      if (!kIsWeb) {
+        _checkAndRestartGeofenceService();
+        // Sofortigen Sync anstoßen – kompensiert Doze-bedingte Verzögerungen
+        BackgroundSyncService.scheduleImmediateSync();
+      }
+    }
+  }
+
+  /// Führt Sync durch und prüft ob der Background-Task einen ausstehenden
+  /// Sync markiert hat (Doze-Modus: Hive war zu).
+  Future<void> _syncPendingEventsAndCheckFlag() async {
+    await _syncPendingEvents();
+    if (!kIsWeb && await BackgroundSyncService.isSyncNeeded()) {
+      await _syncPendingEvents();
+      await BackgroundSyncService.clearSyncNeeded();
     }
   }
 
@@ -276,6 +291,17 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         await _workStatusNotificationService.init();
       } catch (e) {
         debugPrint('WorkStatusNotificationService init error: $e');
+      }
+
+      // Verwaiste offene Einträge bereinigen (Crash-Recovery)
+      try {
+        final cleaned = await _syncService.cleanupOrphanedEntries();
+        if (cleaned > 0) {
+          debugPrint('HomeScreen: cleaned $cleaned orphaned entries');
+          ref.invalidate(workListProvider);
+        }
+      } catch (e) {
+        debugPrint('cleanupOrphanedEntries error: $e');
       }
 
       // Sync und Status IMMER versuchen
@@ -1323,10 +1349,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
                     children: [
                       Icon(Icons.sync, size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Text(
-                        'Letzter Hintergrund-Sync: ${_formatRelative(status.lastBackgroundSync!)}',
-                        style:
-                            TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                      Expanded(
+                        child: Text(
+                          'Hintergrund-Sync: ${_formatRelative(status.lastBackgroundSync!)} · alle 15–60 Min.',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 12),
+                        ),
                       ),
                     ],
                   ),

@@ -14,6 +14,7 @@
 ///   H – Grenzwert-Session: exakt 25 Minuten
 ///   I – Mehrere Bounce-geschützte Exits gefolgt von echtem Exit
 ///   J – Nacht-Persistenz: Events vom Vortag werden korrekt verarbeitet
+///   K – Crash-Recovery: Verwaiste offene Entries werden bereinigt
 
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
@@ -445,6 +446,68 @@ void main() {
       // Am nächsten Tag: laufende Session immer noch offen
       expect(_running.length, 1);
       expect(_running.first.start, _hm(8, 0, dayOffset: -1));
+    });
+  });
+
+  // ── Szenario K – Crash-Recovery: Verwaiste offene Entries ─────────────────
+
+  group('Szenario K – Crash-Recovery (cleanupOrphanedEntries)', () {
+    test('Keine offenen Entries → cleanup gibt 0 zurück', () async {
+      expect(await _svc.cleanupOrphanedEntries(), 0);
+    });
+
+    test('1 offener Entry → cleanup gibt 0 zurück, Entry unberührt', () async {
+      await _workBox.add(WorkEntry(start: _hm(8, 0)));
+      expect(await _svc.cleanupOrphanedEntries(), 0);
+      expect(_workBox.values.first.stop, isNull);
+    });
+
+    test('Crash-Simulation: 3 offene Entries → 2 bereinigt, neuester bleibt offen', () async {
+      // Simuliert: App crashte nach 3 gestarteten Entries (z.B. durch Race-Condition)
+      await _workBox.add(WorkEntry(start: _hm(7, 50)));
+      await _workBox.add(WorkEntry(start: _hm(8, 0)));
+      await _workBox.add(WorkEntry(start: _hm(8, 1)));
+
+      final cleaned = await _svc.cleanupOrphanedEntries();
+      expect(cleaned, 2);
+
+      final openEntries = _workBox.values.where((e) => e.stop == null).toList();
+      expect(openEntries.length, 1);
+      expect(openEntries.first.start, _hm(8, 1)); // neuester bleibt offen
+
+      // Bereinigten Entries haben stop = start + 8h
+      final closedEntries = _workBox.values.where((e) => e.stop != null).toList();
+      for (final entry in closedEntries) {
+        expect(entry.stop, entry.start.add(const Duration(hours: 8)));
+      }
+    });
+
+    test('Mix geschlossen/offen: cleanup nur für offene', () async {
+      // 1 normaler geschlossener Entry
+      final normal = WorkEntry(start: _hm(8, 0))..stop = _hm(17, 0);
+      await _workBox.add(normal);
+      // 2 offene (Crash-Duplikate)
+      await _workBox.add(WorkEntry(start: _hm(8, 30)));
+      await _workBox.add(WorkEntry(start: _hm(9, 0)));
+
+      final cleaned = await _svc.cleanupOrphanedEntries();
+      expect(cleaned, 1);
+
+      // Normaler Entry unberührt
+      final normalEntry = _workBox.values.firstWhere((e) => e.start == _hm(8, 0));
+      expect(normalEntry.stop, _hm(17, 0));
+
+      // Genau 1 Entry noch offen: der neueste der Crash-Duplikate
+      final openEntries = _workBox.values.where((e) => e.stop == null).toList();
+      expect(openEntries.length, 1);
+      expect(openEntries.first.start, _hm(9, 0));
+    });
+
+    test('Nach cleanup: isTracking() korrekt für überlebenden Entry', () async {
+      await _workBox.add(WorkEntry(start: _hm(8, 0)));
+      await _workBox.add(WorkEntry(start: _hm(8, 5)));
+      await _svc.cleanupOrphanedEntries();
+      expect(_svc.isTracking(), true);
     });
   });
 }

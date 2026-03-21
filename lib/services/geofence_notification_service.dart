@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_entry.dart';
 
 /// Notification-Typ für Geofence-Events
-enum GeofenceNotificationType { autoStart, autoStop }
+enum GeofenceNotificationType { autoStart, autoStop, merge }
 
 /// Payload für Geofence-Notifications
 class GeofenceNotificationPayload {
@@ -66,6 +66,7 @@ class GeofenceNotificationService {
   // Notification IDs
   static const int _autoStartNotificationId = 100;
   static const int _autoStopNotificationId = 101;
+  static const int _mergeNotificationId = 102;
 
   // Action IDs
   static const String actionObjection = 'geofence_objection';
@@ -226,6 +227,47 @@ class GeofenceNotificationService {
     );
 
     debugPrint('Showed auto-stop notification for entry $workEntryKey');
+  }
+
+  /// Zeigt informative Benachrichtigung wenn eine GPS-Drift-Session gemergt wurde
+  Future<void> showMergeNotification({
+    required int workEntryKey,
+    required Duration gap,
+    String? zoneName,
+  }) async {
+    await init();
+
+    final zoneText = zoneName != null ? ' ($zoneName)' : '';
+    final gapText = gap.inMinutes > 0 ? 'Lücke: ${gap.inMinutes} Min.' : 'Lücke: < 1 Min.';
+
+    await _notifications.show(
+      _mergeNotificationId,
+      'Arbeitszeit fortgesetzt',
+      'GPS-Drift erkannt – $gapText$zoneText',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'geofence_channel',
+          'Automatische Zeiterfassung',
+          channelDescription:
+              'Benachrichtigungen wenn Arbeitszeit automatisch gestartet/gestoppt wird',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          icon: '@mipmap/ic_launcher',
+          actions: <AndroidNotificationAction>[
+            const AndroidNotificationAction(
+              actionDismiss,
+              'OK',
+              cancelNotification: true,
+            ),
+          ],
+        ),
+        iOS: const DarwinNotificationDetails(
+          categoryIdentifier: 'geofence_category',
+        ),
+      ),
+    );
+
+    debugPrint('Showed merge notification for entry $workEntryKey (gap: ${gap.inMinutes} min)');
   }
 
   /// Handler für Notification-Interaktionen (Foreground)

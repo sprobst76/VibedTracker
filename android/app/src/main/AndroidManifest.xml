@@ -56,11 +56,15 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Geofence Foreground Service for background location tracking -->
+        <!-- Geofence Foreground Service for background location tracking.
+             stopWithTask="false": Service überlebt wenn der User die App aus dem
+             Recents-Menü wischt. Der Service wird vom System automatisch neu
+             gestartet (START_STICKY). -->
         <service
             android:name="com.f2fk.geofence_foreground_service.GeofenceForegroundService"
             android:foregroundServiceType="location"
-            android:exported="false">
+            android:exported="false"
+            android:stopWithTask="false">
         </service>
 
         <!-- Boot Receiver: Startet Tracking automatisch nach Geräte-Neustart -->

@@ -2,17 +2,12 @@ import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../models/work_entry.dart';
-import '../models/pause.dart';
-import './geofence_sync_service.dart';
-import './secure_storage_service.dart';
-
 const _taskName = 'vibed_bg_sync';
 const _lastSyncKey = 'vibed_last_bg_sync';
+const _syncNeededKey = 'vibed_sync_needed';
 
 /// WorkManager callback dispatcher – runs in a separate background isolate.
 /// Must be a top-level function annotated with @pragma('vm:entry-point').
@@ -23,61 +18,37 @@ void workManagerCallbackDispatcher() {
         name: 'BackgroundSyncService');
 
     try {
-      Box<WorkEntry> workBox;
+      final prefs = await SharedPreferences.getInstance();
 
+      // Hive ist nicht thread-safe: Wenn die Box bereits durch die Haupt-App
+      // geöffnet ist, darf der Hintergrund-Task sie nicht erneut öffnen.
+      // In einem echten Hintergrund-Isolate ist die Box immer geschlossen.
       if (Hive.isBoxOpen('work')) {
-        // Box is already open (should not normally happen in an isolate, but
-        // guard against it to avoid HiveError).
-        log('BackgroundSyncService: work box already open',
+        // App läuft im Vordergrund – die App selbst synct die Queue.
+        log('BackgroundSyncService: work box already open by main app, skipping',
             name: 'BackgroundSyncService');
-        workBox = Hive.box<WorkEntry>('work');
-      } else {
-        // Initialise Hive for the background isolate.
-        final appDir = await getApplicationDocumentsDirectory();
-        Hive.init(appDir.path);
-
-        // Register adapters if not yet registered.
-        if (!Hive.isAdapterRegistered(0)) {
-          Hive.registerAdapter(WorkEntryAdapter());
-        }
-        if (!Hive.isAdapterRegistered(1)) {
-          Hive.registerAdapter(PauseAdapter());
-        }
-
-        // Try to open the box with encryption first.
-        try {
-          final secureStorage = SecureStorageService();
-          final keyBytes = await secureStorage.getOrCreateHiveKey();
-          final cipher = HiveAesCipher(keyBytes);
-
-          workBox = await Hive.openBox<WorkEntry>(
-            'work',
-            encryptionCipher: cipher,
-          );
-          log('BackgroundSyncService: opened encrypted work box',
-              name: 'BackgroundSyncService');
-        } catch (encryptionError) {
-          // Fall back to unencrypted if encryption is unavailable.
-          log('BackgroundSyncService: encrypted open failed, '
-              'falling back to unencrypted – $encryptionError',
-              name: 'BackgroundSyncService');
-          workBox = await Hive.openBox<WorkEntry>('work');
-        }
+        await prefs.setString(_lastSyncKey, DateTime.now().toIso8601String());
+        return Future.value(true);
       }
 
-      // Sync pending geofence events (skip notifications in background).
-      final syncService = GeofenceSyncService(
-        workBox,
-        skipNotifications: true,
-      );
-      final processed = await syncService.syncPendingEvents();
-      log('BackgroundSyncService: syncPendingEvents processed $processed event(s)',
-          name: 'BackgroundSyncService');
+      // Box ist zu → echter Hintergrund-Isolate.
+      // Events in der Queue können nicht verarbeitet werden ohne Hive zu öffnen.
+      // Stattdessen: Flag setzen, damit die App beim nächsten Vordergrundkommen
+      // sofort einen Sync ausführt.
+      final pendingEventCount = (await SharedPreferences.getInstance())
+          .getStringList('geofence_event_queue')
+          ?.length ?? 0;
 
-      // Record the timestamp of this successful sync run.
-      final prefs = await SharedPreferences.getInstance();
+      if (pendingEventCount > 0) {
+        await prefs.setBool(_syncNeededKey, true);
+        log('BackgroundSyncService: $pendingEventCount pending events – '
+            'set sync-needed flag for foreground pickup',
+            name: 'BackgroundSyncService');
+      }
+
+      // Timestamp trotzdem aktualisieren (der Task lief, auch wenn kein Hive-Sync)
       await prefs.setString(_lastSyncKey, DateTime.now().toIso8601String());
-      log('BackgroundSyncService: updated last sync timestamp',
+      log('BackgroundSyncService: background check complete',
           name: 'BackgroundSyncService');
 
       return Future.value(true);
@@ -147,6 +118,23 @@ class BackgroundSyncService {
     );
     log('BackgroundSyncService: immediate sync scheduled',
         name: 'BackgroundSyncService');
+  }
+
+  /// Gibt zurück ob der Hintergrund-Task einen ausstehenden Sync markiert hat.
+  /// Der HomeScreen soll diesen Flag beim Vordergrundkommen prüfen.
+  static Future<bool> isSyncNeeded() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_syncNeededKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Löscht den "Sync benötigt"-Flag nach erfolgreichem Foreground-Sync.
+  static Future<void> clearSyncNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_syncNeededKey);
   }
 
   /// Returns the [DateTime] of the last completed background sync, or [null]

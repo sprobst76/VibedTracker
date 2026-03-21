@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/geofence_zone.dart';
 import '../providers.dart';
 import '../services/geofence_event_queue.dart';
+import '../services/geofence_event_log.dart';
 import '../services/geofence_sync_service.dart';
 import '../services/battery_optimization_service.dart';
 import '../models/work_entry.dart';
@@ -56,6 +57,9 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
   bool _simRunning = false;
   List<String> _simResults = [];
 
+  // Event Log
+  List<GeofenceEventLogEntry> _eventLogEntries = [];
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +80,7 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       _loadPosition(),
       _loadEventQueue(),
       _loadWorkEntryStatus(),
+      _loadEventLog(),
     ]);
     setState(() => _lastRefresh = DateTime.now());
   }
@@ -166,6 +171,11 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
         _addLog('Position-Fehler: $e', isError: true);
       }
     }
+  }
+
+  Future<void> _loadEventLog() async {
+    final entries = await GeofenceEventLog.getAll();
+    if (mounted) setState(() => _eventLogEntries = entries);
   }
 
   Future<void> _loadEventQueue() async {
@@ -355,6 +365,10 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
             _buildEventHistoryCard(),
             const SizedBox(height: 16),
 
+            // Verarbeitungs-Log (GeofenceEventLog)
+            _buildEventLogCard(),
+            const SizedBox(height: 16),
+
             // Log Section
             _buildLogCard(),
             const SizedBox(height: 16),
@@ -507,6 +521,15 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
     {'type': GeofenceEvent.exit, 'hour': 18, 'minute': 0},
   ];
 
+  /// GPS-Drift + Re-Entry-Merge: Session wird nach kurzem GPS-Exit fortgesetzt
+  static const _scenarioDriftMerge = [
+    {'type': GeofenceEvent.enter, 'hour': 9, 'minute': 0},   // 09:00 Session startet
+    {'type': GeofenceEvent.exit,  'hour': 9, 'minute': 15},  // 09:15 → Bounce (< 20 min)
+    {'type': GeofenceEvent.exit,  'hour': 9, 'minute': 30},  // 09:30 → Exit (> 25 min) → stoppt
+    {'type': GeofenceEvent.enter, 'hour': 9, 'minute': 35},  // 09:35 → Merge (5 min < 25 min)
+    {'type': GeofenceEvent.exit,  'hour': 17, 'minute': 0},  // 17:00 → stoppt → 1 Entry 09:00–17:00
+  ];
+
   Widget _buildSimulatorCard() {
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -604,6 +627,13 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
                   subtitle: '< 25 min',
                   color: Colors.teal,
                   onPressed: () => _runScenario('Kurzbesuch + echter Abend', _scenarioShort),
+                ),
+                _simButton(
+                  icon: Icons.merge_type,
+                  label: 'Drift+Merge',
+                  subtitle: '09:00→merge',
+                  color: Colors.indigo,
+                  onPressed: () => _runScenario('GPS-Drift + Merge', _scenarioDriftMerge),
                 ),
               ],
             ),
@@ -1580,6 +1610,102 @@ class _GeofenceDebugScreenState extends ConsumerState<GeofenceDebugScreen> {
       return '${hours}h ${minutes}m';
     }
     return '${minutes}m';
+  }
+
+  Widget _buildEventLogCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.history, size: 18),
+                const SizedBox(width: 8),
+                const Text('Verarbeitungs-Log',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                Text('${_eventLogEntries.length} Einträge',
+                    style: TextStyle(
+                        color: Colors.grey.shade500, fontSize: 12)),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () async {
+                    await GeofenceEventLog.clear();
+                    await _loadEventLog();
+                  },
+                  style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8)),
+                  child: const Text('Löschen', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            ),
+            if (_eventLogEntries.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('Noch keine Events verarbeitet',
+                    style: TextStyle(
+                        color: Colors.grey.shade500, fontSize: 12)),
+              )
+            else ...[
+              const Divider(),
+              ...(_eventLogEntries.take(20).map((e) => _buildLogRow(e))),
+              if (_eventLogEntries.length > 20)
+                Text('... und ${_eventLogEntries.length - 20} weitere',
+                    style: TextStyle(
+                        color: Colors.grey.shade400, fontSize: 11)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogRow(GeofenceEventLogEntry entry) {
+    final (icon, color) = switch (entry.outcome) {
+      GeofenceEventOutcome.started    => ('▶', Colors.green),
+      GeofenceEventOutcome.stopped    => ('■', Colors.blue),
+      GeofenceEventOutcome.merged     => ('⟳', Colors.indigo),
+      GeofenceEventOutcome.shortSession => ('✗', Colors.orange),
+      GeofenceEventOutcome.ignored    => ('–', Colors.grey),
+    };
+
+    final timeStr = '${entry.timestamp.hour.toString().padLeft(2, '0')}:'
+        '${entry.timestamp.minute.toString().padLeft(2, '0')}';
+    final eventLabel = entry.event == GeofenceEvent.enter ? 'ENTER' : 'EXIT';
+    final outcomeLabel = switch (entry.outcome) {
+      GeofenceEventOutcome.started     => 'gestartet',
+      GeofenceEventOutcome.stopped     => 'gestoppt',
+      GeofenceEventOutcome.merged      =>
+          'gemergt (+${entry.gapMinutes ?? 0} Min.)',
+      GeofenceEventOutcome.shortSession => 'zu kurz',
+      GeofenceEventOutcome.ignored     => 'ignoriert',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(icon, style: TextStyle(color: color, fontSize: 13)),
+          const SizedBox(width: 6),
+          Text(timeStr,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          const SizedBox(width: 6),
+          Text(eventLabel,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: entry.event == GeofenceEvent.enter
+                      ? Colors.green.shade700
+                      : Colors.red.shade700)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(outcomeLabel,
+                style: TextStyle(color: color, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

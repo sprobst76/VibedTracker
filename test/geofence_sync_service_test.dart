@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time_tracker/models/pause.dart';
 import 'package:time_tracker/models/work_entry.dart';
+import 'package:time_tracker/services/geofence_event_log.dart';
 import 'package:time_tracker/services/geofence_event_queue.dart';
 import 'package:time_tracker/services/geofence_sync_service.dart';
 
@@ -249,6 +250,160 @@ void main() {
       final svc = _service();
       final count = await svc.syncPendingEvents();
       expect(count, 0);
+    });
+  });
+
+  // ── cleanupOrphanedEntries ─────────────────────────────────────────────────
+
+  group('cleanupOrphanedEntries', () {
+    test('Leere Box → gibt 0 zurück', () async {
+      final svc = _service();
+      expect(await svc.cleanupOrphanedEntries(), 0);
+    });
+
+    test('Genau 1 offener Entry → gibt 0 zurück, Entry unberührt', () async {
+      final svc = _service();
+      await _workBox.add(WorkEntry(start: _t(0)));
+      expect(await svc.cleanupOrphanedEntries(), 0);
+      expect(_workBox.values.first.stop, isNull);
+    });
+
+    test('Geschlossener Entry → gibt 0 zurück', () async {
+      final svc = _service();
+      final entry = WorkEntry(start: _t(0));
+      entry.stop = _t(480);
+      await _workBox.add(entry);
+      expect(await svc.cleanupOrphanedEntries(), 0);
+    });
+
+    test('2 offene Entries → bereinigt 1, älterer bekommt stop = start + 8h', () async {
+      final svc = _service();
+      await _workBox.add(WorkEntry(start: _t(0)));   // älter
+      await _workBox.add(WorkEntry(start: _t(60)));  // neuer
+
+      final cleaned = await svc.cleanupOrphanedEntries();
+      expect(cleaned, 1);
+
+      final entries = _workBox.values.toList()
+        ..sort((a, b) => a.start.compareTo(b.start));
+      // Älterer ist geschlossen
+      expect(entries[0].stop, _t(0).add(const Duration(hours: 8)));
+      // Neuerer bleibt offen
+      expect(entries[1].stop, isNull);
+    });
+
+    test('3 offene Entries → bereinigt 2, neuester bleibt offen', () async {
+      final svc = _service();
+      await _workBox.add(WorkEntry(start: _t(0)));
+      await _workBox.add(WorkEntry(start: _t(30)));
+      await _workBox.add(WorkEntry(start: _t(60)));
+
+      final cleaned = await svc.cleanupOrphanedEntries();
+      expect(cleaned, 2);
+
+      final openEntries = _workBox.values.where((e) => e.stop == null).toList();
+      expect(openEntries.length, 1);
+      expect(openEntries.first.start, _t(60)); // neuester bleibt offen
+    });
+
+    test('Bereinigter Entry hat stop = start + 8h (persistiert in Hive)', () async {
+      final svc = _service();
+      final start = _t(0);
+      await _workBox.add(WorkEntry(start: start));
+      await _workBox.add(WorkEntry(start: _t(120)));
+      await svc.cleanupOrphanedEntries();
+
+      final closed = _workBox.values.firstWhere((e) => e.start == start);
+      expect(closed.stop, start.add(const Duration(hours: 8)));
+    });
+
+    test('Mix aus offenen und geschlossenen Entries → nur offene betroffen', () async {
+      final svc = _service();
+      // Zwei geschlossene
+      final closed1 = WorkEntry(start: _t(0))..stop = _t(480);
+      final closed2 = WorkEntry(start: _t(600))..stop = _t(1000);
+      await _workBox.add(closed1);
+      await _workBox.add(closed2);
+      // Zwei offene (Crash)
+      await _workBox.add(WorkEntry(start: _t(200)));
+      await _workBox.add(WorkEntry(start: _t(300)));
+
+      final cleaned = await svc.cleanupOrphanedEntries();
+      expect(cleaned, 1);
+
+      final stillOpen = _workBox.values.where((e) => e.stop == null).toList();
+      expect(stillOpen.length, 1);
+      expect(stillOpen.first.start, _t(300)); // neuester offener bleibt
+    });
+  });
+
+  // ── EventLog-Integration ──────────────────────────────────────────────────
+
+  group('EventLog-Integration', () {
+    setUp(() async {
+      await GeofenceEventLog.clear();
+    });
+
+    tearDown(() async {
+      await GeofenceEventLog.clear();
+    });
+
+    test('ENTER erstellt Entry → Log enthält outcome=started', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.enter, _t(0));
+
+      final log = await GeofenceEventLog.getAll();
+      expect(log.length, 1);
+      expect(log.first.outcome, GeofenceEventOutcome.started);
+      expect(log.first.event, GeofenceEvent.enter);
+    });
+
+    test('EXIT nach 30 min → Log enthält outcome=stopped', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.enter, _t(0));
+      await _processEvent(svc, GeofenceEvent.exit, _t(30));
+
+      final log = await GeofenceEventLog.getAll();
+      // Neueste zuerst: [stopped, started]
+      expect(log[0].outcome, GeofenceEventOutcome.stopped);
+      expect(log[1].outcome, GeofenceEventOutcome.started);
+    });
+
+    test('EXIT nach 20 min (zu kurz) → Log enthält outcome=shortSession', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.enter, _t(0));
+      await _processEvent(svc, GeofenceEvent.exit, _t(20));
+
+      final log = await GeofenceEventLog.getAll();
+      expect(log[0].outcome, GeofenceEventOutcome.shortSession);
+    });
+
+    test('Re-Entry-Merge → Log enthält outcome=merged mit gapMinutes', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.enter, _t(0));
+      await _processEvent(svc, GeofenceEvent.exit, _t(30));   // stoppt Session
+      await _processEvent(svc, GeofenceEvent.enter, _t(35));  // 5 min → merge
+
+      final log = await GeofenceEventLog.getAll();
+      final mergeEntry = log.firstWhere((e) => e.outcome == GeofenceEventOutcome.merged);
+      expect(mergeEntry.gapMinutes, 5);
+    });
+
+    test('Zweites ENTER wenn laufend → Log enthält outcome=ignored', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.enter, _t(0));
+      await _processEvent(svc, GeofenceEvent.enter, _t(10));
+
+      final log = await GeofenceEventLog.getAll();
+      expect(log[0].outcome, GeofenceEventOutcome.ignored);
+    });
+
+    test('EXIT ohne laufende Session → Log enthält outcome=ignored', () async {
+      final svc = _service();
+      await _processEvent(svc, GeofenceEvent.exit, _t(30));
+
+      final log = await GeofenceEventLog.getAll();
+      expect(log.first.outcome, GeofenceEventOutcome.ignored);
     });
   });
 }

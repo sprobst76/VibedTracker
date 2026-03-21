@@ -5,6 +5,7 @@ import 'package:hive/hive.dart';
 import '../models/work_entry.dart';
 import '../models/geofence_zone.dart';
 import 'background_sync_service.dart';
+import 'geofence_event_log.dart';
 import 'geofence_event_queue.dart';
 import 'geofence_notification_service.dart';
 
@@ -78,6 +79,12 @@ class GeofenceSyncService {
 
     if (runningEntry != null) {
       log('GeofenceSyncService: Already running entry exists, skipping ENTER');
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.ignored,
+      ));
       return;
     }
 
@@ -91,6 +98,23 @@ class GeofenceSyncService {
           'merging back into session started at ${recentStopped.start}');
       recentStopped.stop = null;
       await recentStopped.save();
+
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.merged,
+        gapMinutes: gap.inMinutes,
+      ));
+
+      if (_notificationService != null) {
+        final zoneName = _getZoneName(event.zoneId);
+        await _notificationService!.showMergeNotification(
+          workEntryKey: recentStopped.key as int,
+          gap: gap,
+          zoneName: zoneName,
+        );
+      }
       return;
     }
 
@@ -104,6 +128,12 @@ class GeofenceSyncService {
 
     if (existingEntry) {
       log('GeofenceSyncService: Entry already exists for this timestamp');
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.ignored,
+      ));
       return;
     }
 
@@ -111,6 +141,13 @@ class GeofenceSyncService {
     final entry = WorkEntry(start: event.timestamp);
     final key = await workBox.add(entry);
     log('GeofenceSyncService: Created new WorkEntry at ${event.timestamp}');
+
+    await GeofenceEventLog.append(GeofenceEventLogEntry(
+      timestamp: event.timestamp,
+      event: event.event,
+      zoneId: event.zoneId,
+      outcome: GeofenceEventOutcome.started,
+    ));
 
     // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
     if (_notificationService != null) {
@@ -129,12 +166,24 @@ class GeofenceSyncService {
 
     if (runningEntry == null) {
       log('GeofenceSyncService: No running entry to stop');
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.ignored,
+      ));
       return;
     }
 
     // Prüfen ob Exit nach Start liegt
     if (event.timestamp.isBefore(runningEntry.start)) {
       log('GeofenceSyncService: EXIT timestamp before START, ignoring');
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.ignored,
+      ));
       return;
     }
 
@@ -144,6 +193,12 @@ class GeofenceSyncService {
     final sessionDuration = event.timestamp.difference(runningEntry.start);
     if (sessionDuration.inMinutes < 25) {
       log('GeofenceSyncService: EXIT ignored – session too short (${sessionDuration.inMinutes} min < 25 min)');
+      await GeofenceEventLog.append(GeofenceEventLogEntry(
+        timestamp: event.timestamp,
+        event: event.event,
+        zoneId: event.zoneId,
+        outcome: GeofenceEventOutcome.shortSession,
+      ));
       return;
     }
 
@@ -152,6 +207,13 @@ class GeofenceSyncService {
     runningEntry.stop = event.timestamp;
     await runningEntry.save();
     log('GeofenceSyncService: Stopped WorkEntry at ${event.timestamp}');
+
+    await GeofenceEventLog.append(GeofenceEventLogEntry(
+      timestamp: event.timestamp,
+      event: event.event,
+      zoneId: event.zoneId,
+      outcome: GeofenceEventOutcome.stopped,
+    ));
 
     // Benachrichtigung mit Einspruch-Möglichkeit anzeigen
     if (_notificationService != null) {
@@ -211,6 +273,31 @@ class GeofenceSyncService {
       }
     }
     return null;
+  }
+
+  /// Bereinigt verwaiste offene Einträge (z.B. nach einem App-Crash).
+  ///
+  /// Wenn mehrere Einträge ohne [stop]-Zeit existieren, werden alle außer
+  /// dem neuesten automatisch geschlossen: [stop] = [start] + 8 Stunden.
+  ///
+  /// Gibt die Anzahl der bereinigten Einträge zurück (0 = alles in Ordnung).
+  Future<int> cleanupOrphanedEntries() async {
+    final open = workBox.values.where((e) => e.stop == null).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    if (open.length <= 1) return 0;
+
+    // Alle außer dem neuesten schließen
+    final toClose = open.sublist(0, open.length - 1);
+    for (final entry in toClose) {
+      entry.stop = entry.start.add(const Duration(hours: 8));
+      await entry.save();
+      log('GeofenceSyncService: Closed orphaned entry started at ${entry.start}',
+          name: 'GeofenceSyncService');
+    }
+    log('GeofenceSyncService: Cleaned up ${toClose.length} orphaned entries',
+        name: 'GeofenceSyncService');
+    return toClose.length;
   }
 
   /// Prüft ob aktuell eine Arbeitszeit läuft
