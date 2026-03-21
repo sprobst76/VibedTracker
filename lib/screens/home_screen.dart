@@ -25,6 +25,7 @@ import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'overtime_screen.dart';
+import 'projects_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../widgets/pomodoro_card.dart';
@@ -662,6 +663,14 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.folder_special),
+            tooltip: 'Projekte',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProjectsScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.push(
               context,
@@ -989,6 +998,8 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 8),
               // Aktueller Arbeitsmodus mit Wechsel-Option
               _buildWorkModeChips(entry),
+              // Projekt-Badge (falls gesetzt)
+              if (entry.projectId != null) _buildProjectBadge(entry.projectId!),
               const SizedBox(height: 8),
               Text(
                 'Gestartet: ${_formatTime(entry.start)}',
@@ -1051,6 +1062,32 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         );
       }).toList(),
     );
+  }
+
+  Widget _buildProjectBadge(String projectId) {
+    final projects = ref.watch(projectsProvider);
+    try {
+      final project = projects.firstWhere((p) => p.id == projectId);
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: InkWell(
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const ProjectsScreen())),
+          borderRadius: BorderRadius.circular(12),
+          child: Chip(
+            avatar: CircleAvatar(
+              backgroundColor: project.color,
+              radius: 6,
+            ),
+            label: Text(project.name, style: const TextStyle(fontSize: 11)),
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
   }
 
   Future<void> _switchWorkMode(WorkEntry currentEntry, WorkMode newMode) async {

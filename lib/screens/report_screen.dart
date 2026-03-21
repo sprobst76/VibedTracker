@@ -4,6 +4,7 @@ import '../providers.dart';
 import '../models/work_entry.dart';
 import '../models/vacation.dart';
 import '../models/settings.dart';
+import '../models/project.dart';
 import '../services/holiday_service.dart';
 import '../services/export_service.dart';
 
@@ -36,7 +37,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -286,6 +287,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
             Tab(text: 'Woche', icon: Icon(Icons.view_week, size: 20)),
             Tab(text: 'Monat', icon: Icon(Icons.calendar_month, size: 20)),
             Tab(text: 'Jahr', icon: Icon(Icons.calendar_today, size: 20)),
+            Tab(text: 'Projekte', icon: Icon(Icons.folder_special, size: 20)),
           ],
         ),
       ),
@@ -295,6 +297,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
           _buildWeekView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
           _buildMonthView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
           _buildYearView(workEntries, vacations, settings.weeklyHours, periodsNotifier, settings),
+          _buildProjectView(workEntries),
         ],
       )),
     );
@@ -1117,6 +1120,129 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
       ][month - 1];
 
   bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  // ============ PROJECT VIEW ============
+
+  Widget _buildProjectView(List<WorkEntry> allEntries) {
+    final projects = ref.watch(projectsProvider);
+
+    // Nur abgeschlossene Entries zählen
+    final entries = allEntries.where((e) => e.stop != null).toList();
+
+    // Stunden pro Projekt aggregieren
+    final Map<String?, double> hoursById = {};
+    for (final e in entries) {
+      final net = _netMinutes(e) / 60.0;
+      hoursById[e.projectId] = (hoursById[e.projectId] ?? 0) + net;
+    }
+
+    // Sortiert: höchste Stunden zuerst
+    final sorted = hoursById.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final totalHours = sorted.fold(0.0, (s, e) => s + e.value);
+
+    if (entries.isEmpty) {
+      return const Center(
+        child: Text('Noch keine abgeschlossenen Einträge.',
+            style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Gesamt-Summary
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildMiniStat('Gesamt', _formatHours(totalHours), Colors.blue.shade700),
+                _buildMiniStat('Einträge', '${entries.length}', Colors.grey.shade700),
+                _buildMiniStat('Projekte', '${hoursById.keys.where((k) => k != null).length}', Colors.grey.shade700),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Pro-Projekt-Karten
+        ...sorted.map((entry) {
+          final id = entry.key;
+          final hours = entry.value;
+          final pct = totalHours > 0 ? hours / totalHours : 0.0;
+
+          // Projekt-Objekt suchen
+          Project? project;
+          if (id != null) {
+            try {
+              project = projects.firstWhere((p) => p.id == id);
+            } catch (_) {}
+          }
+
+          final name = project?.name ?? (id == null ? 'Kein Projekt' : 'Gelöscht ($id)');
+          final color = project?.color ?? Colors.grey;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: color,
+                        radius: 8,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      Text(
+                        _formatHours(hours),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(pct * 100).toStringAsFixed(1)}%',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      backgroundColor: color.withAlpha(40),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  double _netMinutes(WorkEntry e) {
+    final end = e.stop ?? DateTime.now();
+    var gross = end.difference(e.start).inSeconds / 60.0;
+    for (final p in e.pauses) {
+      if (p.end != null) {
+        gross -= p.end!.difference(p.start).inSeconds / 60.0;
+      }
+    }
+    return gross.clamp(0, double.infinity);
+  }
+
 }
 
 // ============ DATA CLASSES ============
