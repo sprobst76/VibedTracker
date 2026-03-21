@@ -55,6 +55,12 @@ class Settings extends HiveObject {
   bool pomodoroAutoStart; // Automatischer Start der nächsten Phase
   @HiveField(21)
   bool pomodoroShowNotifications; // Benachrichtigungen bei Phasenwechsel anzeigen
+  @HiveField(22)
+  int overtimeCarryoverMinutes; // Vortrag Gleitzeit-Konto in Minuten (kann negativ sein)
+  @HiveField(23)
+  int overtimeWarnHighHours; // Warnschwelle Überstunden (positiv, Standard: 40)
+  @HiveField(24)
+  int overtimeWarnLowHours; // Warnschwelle Minusstunden (negativ, Standard: -8)
 
   Settings({
     this.weeklyHours = 40.0,
@@ -79,6 +85,9 @@ class Settings extends HiveObject {
     this.pomodoroLongBreakMinutes = 15, // Default: 15 Minuten
     this.pomodoroAutoStart = false, // Default: manuell
     this.pomodoroShowNotifications = true, // Default: Benachrichtigungen
+    this.overtimeCarryoverMinutes = 0, // Default: kein Vortrag
+    this.overtimeWarnHighHours = 40,  // Default: +40h Warnung
+    this.overtimeWarnLowHours = -8,   // Default: -8h Warnung
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück

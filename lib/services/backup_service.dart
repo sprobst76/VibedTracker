@@ -318,6 +318,9 @@ class BackupService {
     'googleCalendarEnabled': s.googleCalendarEnabled,
     'enableReminders': s.enableReminders,
     'reminderHour': s.reminderHour,
+    'overtimeCarryoverMinutes': s.overtimeCarryoverMinutes,
+    'overtimeWarnHighHours': s.overtimeWarnHighHours,
+    'overtimeWarnLowHours': s.overtimeWarnLowHours,
   };
 
   Settings _settingsFromJson(Map<String, dynamic> json) => Settings(
@@ -335,6 +338,9 @@ class BackupService {
     googleCalendarEnabled: json['googleCalendarEnabled'] ?? false,
     enableReminders: json['enableReminders'] ?? true,
     reminderHour: json['reminderHour'] ?? 18,
+    overtimeCarryoverMinutes: json['overtimeCarryoverMinutes'] ?? 0,
+    overtimeWarnHighHours: json['overtimeWarnHighHours'] ?? 40,
+    overtimeWarnLowHours: json['overtimeWarnLowHours'] ?? -8,
   );
 
   void _mergeSettings(Settings existing, Settings imported) {
@@ -345,6 +351,9 @@ class BackupService {
     existing.enableVacationCarryover = imported.enableVacationCarryover;
     existing.christmasEveWorkFactor = imported.christmasEveWorkFactor;
     existing.newYearsEveWorkFactor = imported.newYearsEveWorkFactor;
+    existing.overtimeCarryoverMinutes = imported.overtimeCarryoverMinutes;
+    existing.overtimeWarnHighHours = imported.overtimeWarnHighHours;
+    existing.overtimeWarnLowHours = imported.overtimeWarnLowHours;
   }
 
   // Project

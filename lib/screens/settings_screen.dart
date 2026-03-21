@@ -68,6 +68,10 @@ class SettingsScreen extends ConsumerWidget {
           _buildPomodoroSection(context, ref, settings, notifier),
           const SizedBox(height: 16),
 
+          // Überstunden-Warnungen Section
+          _buildOvertimeAlertsSection(context, settings, notifier),
+          const SizedBox(height: 16),
+
           // Projekte Section
           _buildProjectsSection(context, ref),
           const SizedBox(height: 16),
@@ -1056,6 +1060,99 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOvertimeAlertsSection(
+      BuildContext context, Settings settings, SettingsNotifier notifier) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.notifications_active_outlined,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Kontostand-Warnungen',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Push-Notification bei Über- oder Unterschreitung der Schwelle.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            // Überstunden-Schwelle
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.arrow_upward, color: Colors.green),
+              title: const Text('Überstunden-Warnung'),
+              subtitle: Text('+${settings.overtimeWarnHighHours}h'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: settings.overtimeWarnHighHours > 1
+                        ? () => notifier.updateOvertimeWarnHighHours(
+                            settings.overtimeWarnHighHours - 1)
+                        : null,
+                  ),
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      '${settings.overtimeWarnHighHours}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => notifier.updateOvertimeWarnHighHours(
+                        settings.overtimeWarnHighHours + 1),
+                  ),
+                ],
+              ),
+            ),
+            // Minusstunden-Schwelle
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.arrow_downward, color: Colors.red),
+              title: const Text('Minusstunden-Warnung'),
+              subtitle: Text('${settings.overtimeWarnLowHours}h'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: () => notifier.updateOvertimeWarnLowHours(
+                        settings.overtimeWarnLowHours - 1),
+                  ),
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      '${settings.overtimeWarnLowHours}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: settings.overtimeWarnLowHours < -1
+                        ? () => notifier.updateOvertimeWarnLowHours(
+                            settings.overtimeWarnLowHours + 1)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

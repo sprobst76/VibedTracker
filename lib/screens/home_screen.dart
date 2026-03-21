@@ -27,11 +27,13 @@ import 'report_screen.dart';
 import 'overtime_screen.dart';
 import '../services/overtime_service.dart';
 import 'projects_screen.dart';
+import 'history_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../widgets/pomodoro_card.dart';
 import '../services/location_tracking_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/overtime_alert_service.dart';
 import 'calendar_overview_screen.dart';
 import '../widgets/responsive_shell.dart';
 
@@ -111,6 +113,41 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     if (!kIsWeb && await BackgroundSyncService.isSyncNeeded()) {
       await _syncPendingEvents();
       await BackgroundSyncService.clearSyncNeeded();
+    }
+    // Pending Notification-Action verarbeiten (Stopp/Pause/Fortsetzen aus
+    // Statusleiste, während App im Hintergrund war und Callback null war)
+    if (!kIsWeb) {
+      final pendingAction = await WorkStatusNotificationService.consumePendingAction();
+      if (pendingAction != null) {
+        await _handleNotificationAction(pendingAction);
+      }
+      await _checkOvertimeAlerts();
+    }
+  }
+
+  /// Berechnet den aktuellen Gesamtkontostand und löst ggf. eine Warnung aus.
+  Future<void> _checkOvertimeAlerts() async {
+    if (kIsWeb) return;
+    try {
+      final entries  = ref.read(workEntryProvider);
+      final settings = ref.read(settingsProvider);
+      final vacations = ref.read(vacationProvider);
+      final periods  = ref.read(weeklyHoursPeriodsProvider);
+      final allTime  = OvertimeService.calculateAllTime(
+        entries: entries,
+        settings: settings,
+        periods: periods,
+        holidays: const {},
+        absences: vacations,
+      );
+      final totalBalance =
+          (settings.overtimeCarryoverMinutes / 60.0) + allTime.balanceHours;
+      await OvertimeAlertService.checkAndNotify(
+        totalBalanceHours: totalBalance,
+        settings: settings,
+      );
+    } catch (e) {
+      debugPrint('OvertimeAlertService check error: $e');
     }
   }
 
@@ -285,6 +322,12 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       }
 
       try {
+        await OvertimeAlertService.init();
+      } catch (e) {
+        debugPrint('OvertimeAlertService init error: $e');
+      }
+
+      try {
         await _geofenceNotificationService.init();
         final objectionCount =
             await _geofenceNotificationService.processPendingObjections();
@@ -297,6 +340,11 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
       try {
         await _workStatusNotificationService.init();
+        // Pending action verarbeiten (falls App nach Background-Tap gestartet wurde)
+        final pendingAction = await WorkStatusNotificationService.consumePendingAction();
+        if (pendingAction != null) {
+          await _handleNotificationAction(pendingAction);
+        }
       } catch (e) {
         debugPrint('WorkStatusNotificationService init error: $e');
       }
@@ -575,6 +623,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         await running.save();
         ref.invalidate(workListProvider);
         await _updateWorkStatusNotification();
+        await _checkOvertimeAlerts();
         break;
 
       case WorkStatusNotificationService.actionPause:
@@ -668,6 +717,14 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('VibedTracker'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Eintrags-Verlauf',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoryScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_month),
             tooltip: 'Kalenderübersicht',
@@ -945,6 +1002,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             ref.invalidate(workListProvider);
             await _updateStatus();
             await _updateWorkStatusNotification();
+            await _checkOvertimeAlerts();
           },
           icon: const Icon(Icons.stop),
           label: const Text('Arbeit beenden'),
@@ -1577,40 +1635,52 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Kleines Chip-Widget mit der Wochenbilanz (Überstunden/Minderstunden).
-  /// Tippt man drauf, öffnet sich der Überstundenbildschirm.
+  /// Chip mit Wochensaldo + Gesamtkontostand (inkl. Vortrag).
+  /// Tippt man drauf, öffnet sich der Überstundenbildschirm (Gesamt-Tab).
   Widget _buildWeekOvertimeChip(List<WorkEntry> entries) {
     final settings = ref.watch(settingsProvider);
     final vacations = ref.watch(vacationProvider);
     final periods = ref.watch(weeklyHoursPeriodsProvider);
 
     final now = DateTime.now();
-    final weekStart = DateTime(
-        now.year, now.month, now.day - (now.weekday - 1));
+    final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
 
-    final result = OvertimeService.calculate(
+    // Wochensaldo (schnell, keine Feiertage)
+    final weekResult = OvertimeService.calculate(
       from: weekStart,
       to: weekEnd,
       entries: entries,
       settings: settings,
       periods: periods,
-      holidays: const {},   // Feiertage weglassen (schnelle Anzeige)
+      holidays: const {},
       absences: vacations,
       today: now,
     );
 
-    final balance = result.balanceHours;
-    final isPos = balance >= 0;
-    final abs = balance.abs();
-    final h = abs.floor();
-    final m = ((abs - h) * 60).round();
-    final label = m == 0 ? '${h}h' : '${h}h ${m}m';
-    final sign = isPos ? '+' : '−';
+    // Gesamtkontostand = Vortrag + All-Time-Saldo
+    final allTimeResult = OvertimeService.calculateAllTime(
+      entries: entries,
+      settings: settings,
+      periods: periods,
+      holidays: const {},
+      absences: vacations,
+    );
+    final accountBalance =
+        (settings.overtimeCarryoverMinutes / 60.0) + allTimeResult.balanceHours;
 
-    final chipColor = balance == 0
+    String fmt(double h) {
+      final sign = h >= 0 ? '+' : '−';
+      final abs = h.abs();
+      final hh = abs.floor();
+      final mm = ((abs - hh) * 60).round();
+      return '$sign${mm == 0 ? '${hh}h' : '${hh}h ${mm}m'}';
+    }
+
+    final weekBalance = weekResult.balanceHours;
+    final chipColor = accountBalance == 0
         ? Colors.grey
-        : isPos
+        : accountBalance > 0
             ? Colors.green.shade700
             : Colors.red.shade700;
 
@@ -1623,7 +1693,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         ),
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: chipColor.withAlpha(20),
             border: Border.all(color: chipColor.withAlpha(80)),
@@ -1632,15 +1702,28 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.timelapse, size: 14, color: chipColor),
-              const SizedBox(width: 5),
-              Text(
-                'KW ${_isoWeekNumber(weekStart)}: $sign$label',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: chipColor,
-                ),
+              Icon(Icons.account_balance_wallet_outlined,
+                  size: 14, color: chipColor),
+              const SizedBox(width: 6),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Kontostand — groß
+                  Text(
+                    'Konto: ${fmt(accountBalance)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: chipColor,
+                    ),
+                  ),
+                  // Wochensaldo — klein
+                  Text(
+                    'KW ${_isoWeekNumber(weekStart)}: ${fmt(weekBalance)}',
+                    style: TextStyle(fontSize: 10, color: chipColor.withAlpha(180)),
+                  ),
+                ],
               ),
             ],
           ),

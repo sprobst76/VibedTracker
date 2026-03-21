@@ -39,13 +39,16 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       pomodoroLongBreakMinutes: fields[19] as int,
       pomodoroAutoStart: fields[20] as bool,
       pomodoroShowNotifications: fields[21] as bool,
+      overtimeCarryoverMinutes: fields[22] as int,
+      overtimeWarnHighHours: fields[23] as int,
+      overtimeWarnLowHours: fields[24] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(22)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -89,7 +92,13 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(20)
       ..write(obj.pomodoroAutoStart)
       ..writeByte(21)
-      ..write(obj.pomodoroShowNotifications);
+      ..write(obj.pomodoroShowNotifications)
+      ..writeByte(22)
+      ..write(obj.overtimeCarryoverMinutes)
+      ..writeByte(23)
+      ..write(obj.overtimeWarnHighHours)
+      ..writeByte(24)
+      ..write(obj.overtimeWarnLowHours);
   }
 
   @override

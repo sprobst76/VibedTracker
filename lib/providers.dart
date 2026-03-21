@@ -154,6 +154,21 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..pomodoroShowNotifications = enabled;
     state.save();
   }
+
+  void updateOvertimeCarryover(int minutes) {
+    state = state..overtimeCarryoverMinutes = minutes;
+    state.save();
+  }
+
+  void updateOvertimeWarnHighHours(int hours) {
+    state = state..overtimeWarnHighHours = hours.clamp(1, 999);
+    state.save();
+  }
+
+  void updateOvertimeWarnLowHours(int hours) {
+    state = state..overtimeWarnLowHours = hours.clamp(-999, -1);
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)
