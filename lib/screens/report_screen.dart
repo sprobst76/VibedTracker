@@ -195,6 +195,31 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
         'Bei "Frei" entfällt die Soll-Arbeitszeit komplett.';
   }
 
+  Future<void> _exportWeek(List<WorkEntry> entries) async {
+    setState(() => _isExporting = true);
+    try {
+      final projects = ref.read(projectsProvider);
+      await _exportService.exportWeekToExcel(
+        entries: entries,
+        weekStart: _selectedWeekStart,
+        projects: projects,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Export erfolgreich')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export fehlgeschlagen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
   Future<void> _exportMonth(
     List<WorkEntry> entries,
     double weeklyHours,
@@ -260,11 +285,12 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
             tooltip: 'Berechnungslogik',
             onPressed: () => _showCalculationInfoDialog(context, settings),
           ),
-          // Export-Button nur im Monat-Tab anzeigen
+          // Export-Button für Woche (Tab 0) und Monat (Tab 1)
           AnimatedBuilder(
             animation: _tabController,
             builder: (context, _) {
-              if (_tabController.index != 1) return const SizedBox.shrink();
+              final tab = _tabController.index;
+              if (tab != 0 && tab != 1) return const SizedBox.shrink();
               return IconButton(
                 icon: _isExporting
                     ? const SizedBox(
@@ -276,7 +302,9 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
                 tooltip: 'Als Excel exportieren',
                 onPressed: _isExporting
                     ? null
-                    : () => _exportMonth(workEntries, settings.weeklyHours, periodsNotifier),
+                    : tab == 0
+                        ? () => _exportWeek(workEntries)
+                        : () => _exportMonth(workEntries, settings.weeklyHours, periodsNotifier),
               );
             },
           ),

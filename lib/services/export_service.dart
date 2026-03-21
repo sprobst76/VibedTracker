@@ -179,6 +179,142 @@ class ExportService {
     );
   }
 
+  /// Exportiert Arbeitseinträge einer Woche als Excel-Datei
+  ///
+  /// [weekStart] - Montag der zu exportierenden Woche
+  Future<void> exportWeekToExcel({
+    required List<WorkEntry> entries,
+    required DateTime weekStart,
+    required List<Project> projects,
+  }) async {
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final excel = Excel.createExcel();
+
+    final kw = _isoWeekNumber(weekStart);
+    final sheetName = 'KW$kw';
+
+    excel.delete('Sheet1');
+    final sheet = excel[sheetName];
+
+    final projectMap = {for (final p in projects) p.id: p.name};
+
+    final headerStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.fromHexString('#4472C4'),
+      fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    final headers = [
+      'Datum', 'Wochentag', 'Start', 'Ende',
+      'Brutto (h)', 'Pausen (h)', 'Netto (h)', 'Modus', 'Projekt', 'Notizen',
+    ];
+
+    for (var i = 0; i < headers.length; i++) {
+      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+      cell.value = TextCellValue(headers[i]);
+      cell.cellStyle = headerStyle;
+    }
+
+    final weekEntries = entries.where((e) {
+      final d = DateTime(e.start.year, e.start.month, e.start.day);
+      return !d.isBefore(DateTime(weekStart.year, weekStart.month, weekStart.day)) &&
+          !d.isAfter(DateTime(weekEnd.year, weekEnd.month, weekEnd.day));
+    }).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    var row = 1;
+    var totalBrutto = 0.0;
+    var totalPause = 0.0;
+    var totalNetto = 0.0;
+
+    for (final entry in weekEntries) {
+      if (entry.stop == null) continue;
+
+      final brutto = entry.stop!.difference(entry.start).inMinutes / 60.0;
+      final pause = _calculatePauseHours(entry);
+      final netto = brutto - pause;
+
+      totalBrutto += brutto;
+      totalPause += pause;
+      totalNetto += netto;
+
+      final projectName = entry.projectId != null
+          ? (projectMap[entry.projectId] ?? entry.projectId!)
+          : '';
+
+      final rowData = [
+        TextCellValue(_formatDate(entry.start)),
+        TextCellValue(_getWeekdayName(entry.start.weekday)),
+        TextCellValue(_formatTime(entry.start)),
+        TextCellValue(_formatTime(entry.stop!)),
+        DoubleCellValue(double.parse(brutto.toStringAsFixed(2))),
+        DoubleCellValue(double.parse(pause.toStringAsFixed(2))),
+        DoubleCellValue(double.parse(netto.toStringAsFixed(2))),
+        TextCellValue(entry.workMode.label),
+        TextCellValue(projectName),
+        TextCellValue(entry.notes ?? ''),
+      ];
+
+      for (var i = 0; i < rowData.length; i++) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: row)).value = rowData[i];
+      }
+      row++;
+    }
+
+    row++;
+
+    final summaryStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: ExcelColor.fromHexString('#E2EFDA'),
+    );
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+      ..value = TextCellValue('Gesamt')
+      ..cellStyle = summaryStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+      ..value = DoubleCellValue(double.parse(totalBrutto.toStringAsFixed(2)))
+      ..cellStyle = summaryStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row))
+      ..value = DoubleCellValue(double.parse(totalPause.toStringAsFixed(2)))
+      ..cellStyle = summaryStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: row))
+      ..value = DoubleCellValue(double.parse(totalNetto.toStringAsFixed(2)))
+      ..cellStyle = summaryStyle;
+
+    sheet.setColumnWidth(0, 12);
+    sheet.setColumnWidth(1, 12);
+    sheet.setColumnWidth(2, 8);
+    sheet.setColumnWidth(3, 8);
+    sheet.setColumnWidth(4, 10);
+    sheet.setColumnWidth(5, 10);
+    sheet.setColumnWidth(6, 10);
+    sheet.setColumnWidth(7, 14);
+    sheet.setColumnWidth(8, 20);
+    sheet.setColumnWidth(9, 30);
+
+    final bytes = excel.encode();
+    if (bytes == null) throw Exception('Excel-Datei konnte nicht erstellt werden');
+
+    final dir = await getTemporaryDirectory();
+    final fileName = 'Arbeitszeit_KW${kw.toString().padLeft(2, '0')}_${weekStart.year}.xlsx';
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'Arbeitszeitbericht KW$kw ${weekStart.year}',
+    );
+  }
+
+  /// ISO-8601 Kalenderwoche
+  int _isoWeekNumber(DateTime date) {
+    final thursday = date.add(Duration(days: 3 - (date.weekday - 1)));
+    final jan4 = DateTime(thursday.year, 1, 4);
+    final startOfWeek1 = jan4.subtract(Duration(days: jan4.weekday - 1));
+    return ((thursday.difference(startOfWeek1).inDays) ~/ 7) + 1;
+  }
+
   double _calculatePauseHours(WorkEntry entry) {
     var pauseMinutes = 0.0;
     for (final pause in entry.pauses) {
