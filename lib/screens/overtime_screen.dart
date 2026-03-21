@@ -167,6 +167,7 @@ class _OvertimeScreenState extends ConsumerState<OvertimeScreen>
       children: [
         _buildYearNavigation(),
         _buildBalanceCard(result),
+        _buildYearBarChart(settings, entries, vacations, periods),
         const Divider(height: 1),
         Expanded(child: _buildMonthBreakdown(result, settings, entries, vacations, periods)),
       ],
@@ -408,6 +409,104 @@ class _OvertimeScreenState extends ConsumerState<OvertimeScreen>
   }
 
   // ── Monatsübersicht im Jahres-Tab ─────────────────────────────────────────
+
+  /// Kompaktes Balkendiagramm: monatliche Über-/Unterstunden für das gewählte Jahr.
+  /// Positive Monate → grüner Balken nach oben, negative → roter Balken nach unten.
+  Widget _buildYearBarChart(
+    Settings settings,
+    List<WorkEntry> entries,
+    List<Vacation> vacations,
+    List<WeeklyHoursPeriod> periods,
+  ) {
+    const monthLabels = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+    const halfH = 40.0;
+    const barW = 10.0;
+    final today = DateTime.now();
+
+    final balances = List.generate(12, (i) {
+      final month = i + 1;
+      final from = DateTime(_selectedYear, month, 1);
+      if (from.isAfter(today)) return 0.0;
+      final to = DateTime(_selectedYear, month + 1, 0);
+      return OvertimeService.calculate(
+        from: from, to: to,
+        entries: entries, settings: settings, periods: periods,
+        holidays: _holidays.keys.toSet(), absences: vacations,
+      ).balanceHours;
+    });
+
+    final maxAbs = balances.fold(0.0, (m, v) => v.abs() > m ? v.abs() : m);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: SizedBox(
+        height: halfH * 2 + 18,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: List.generate(12, (i) {
+            final balance = balances[i];
+            final isPos = balance >= 0;
+            final fraction = maxAbs > 0 ? balance.abs() / maxAbs : 0.0;
+            final barH = (halfH * fraction).clamp(1.0, halfH);
+            final color = isPos ? Colors.green.shade600 : Colors.red.shade600;
+
+            return Expanded(
+              child: Column(
+                children: [
+                  // Top half — positive bar (bottom-aligned)
+                  SizedBox(
+                    height: halfH,
+                    child: isPos && balance != 0
+                        ? Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Container(
+                              width: barW,
+                              height: barH,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(2)),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  // Zero line
+                  Container(height: 1, color: Colors.grey.shade400),
+                  // Bottom half — negative bar (top-aligned)
+                  SizedBox(
+                    height: halfH,
+                    child: !isPos && balance != 0
+                        ? Align(
+                            alignment: Alignment.topCenter,
+                            child: Container(
+                              width: barW,
+                              height: barH,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(2)),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  // Month label
+                  Text(
+                    monthLabels[i],
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: balance == 0 ? Colors.grey.shade400 : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
 
   Widget _buildMonthBreakdown(
     OvertimeResult yearResult,

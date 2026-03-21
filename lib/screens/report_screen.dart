@@ -1196,6 +1196,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
         ),
         const SizedBox(height: 12),
 
+        // ── Arbeitsmodus-Aufschlüsselung ──────────────────────────────────
+        _buildWorkModeBreakdown(entries, totalHours),
+        const SizedBox(height: 12),
+
         // Pro-Projekt-Karten
         ...sorted.map((entry) {
           final id = entry.key;
@@ -1257,6 +1261,90 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
           );
         }),
       ],
+    );
+  }
+
+  /// Balken-Aufschlüsselung der Arbeitszeit nach WorkMode.
+  Widget _buildWorkModeBreakdown(List<WorkEntry> entries, double totalHours) {
+    // Stunden pro WorkMode aggregieren
+    final Map<WorkMode, double> hoursByMode = {};
+    for (final e in entries) {
+      final net = _netMinutes(e) / 60.0;
+      hoursByMode[e.workMode] = (hoursByMode[e.workMode] ?? 0) + net;
+    }
+
+    // Nur Modi mit Stunden > 0, sortiert absteigend
+    final sorted = hoursByMode.entries
+        .where((e) => e.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    if (sorted.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Arbeitsmodus',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+            ...sorted.map((entry) {
+              final mode = entry.key;
+              final hours = entry.value;
+              final pct = totalHours > 0 ? hours / totalHours : 0.0;
+              final color = mode.color;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(mode.icon, size: 16, color: color),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(mode.label,
+                              style: const TextStyle(fontSize: 13)),
+                        ),
+                        Text(
+                          _formatHours(hours),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, color: color),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 44,
+                          child: Text(
+                            '${(pct * 100).toStringAsFixed(1)}%',
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: pct,
+                        backgroundColor: color.withAlpha(30),
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
