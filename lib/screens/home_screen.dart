@@ -15,6 +15,7 @@ import '../services/geofence_event_queue.dart';
 import '../services/background_sync_service.dart';
 import '../services/geofence_notification_service.dart';
 import '../services/work_status_notification_service.dart';
+import '../services/break_warning_service.dart';
 import '../services/reminder_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../models/work_entry.dart';
@@ -43,6 +44,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   final _reminderService = ReminderService();
   final _geofenceNotificationService = GeofenceNotificationService();
   final _workStatusNotificationService = WorkStatusNotificationService();
+  final _breakWarningService = BreakWarningService();
   GeofenceStatus? _geofenceStatus;
   bool _isInitializing = true;
   String? _initError;
@@ -454,6 +456,15 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     }
     await _updateStatus();
     await _updateWorkStatusNotification();
+    // Pausenpflicht-Check nach ArbZG
+    if (!kIsWeb) {
+      final running = _syncService.isTracking()
+          ? (Hive.box<WorkEntry>('work').values
+              .where((e) => e.stop == null)
+              .lastOrNull)
+          : null;
+      await _breakWarningService.checkAndWarn(running);
+    }
     // Sicherheitsprüfung: WorkList-UI mit Hive abgleichen (auch ohne neue Events)
     if (!mounted) return;
     final workBox = Hive.box<WorkEntry>('work');
@@ -1252,8 +1263,46 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     final status = _geofenceStatus!;
     final serviceDown = !status.isServiceRunning;
 
+    // Pausenpflicht-Warnung für UI: aktuell laufenden Entry prüfen
+    BreakWarningLevel? breakWarning;
+    if (status.isTracking) {
+      final running = Hive.box<WorkEntry>('work')
+          .values
+          .where((e) => e.stop == null)
+          .lastOrNull;
+      if (running != null) {
+        breakWarning = BreakWarningService.currentWarningLevel(running);
+      }
+    }
+
     return Column(
       children: [
+        // Oranges Banner bei Pausenpflicht
+        if (breakWarning != null)
+          Card(
+            color: Colors.orange.shade50,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.coffee, color: Colors.orange.shade800, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      breakWarning == BreakWarningLevel.nineHours
+                          ? '§ 4 ArbZG: Nach 9h Arbeit mind. 45 Min. Pause erforderlich'
+                          : '§ 4 ArbZG: Nach 6h Arbeit mind. 30 Min. Pause erforderlich',
+                      style: TextStyle(
+                        color: Colors.orange.shade900,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         // Roter Banner wenn Service nicht läuft
         if (serviceDown)
           Card(
