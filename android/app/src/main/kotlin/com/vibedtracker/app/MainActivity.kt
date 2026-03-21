@@ -1,5 +1,6 @@
 package com.vibedtracker.app
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -12,6 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
     private val BATTERY_CHANNEL = "com.vibedtracker.app/battery"
+    private val WIDGET_CHANNEL  = "com.vibedtracker.app/widget"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -28,6 +30,16 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> {
                     result.notImplemented()
                 }
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WIDGET_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "updateWidget" -> {
+                    WorkStatusWidget.updateAllWidgets(this)
+                    result.success(true)
+                }
+                else -> result.notImplemented()
             }
         }
     }

@@ -30,6 +30,7 @@ import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../widgets/pomodoro_card.dart';
 import '../services/location_tracking_service.dart';
+import '../services/home_widget_service.dart';
 import 'calendar_overview_screen.dart';
 import '../widgets/responsive_shell.dart';
 
@@ -489,6 +490,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       final runningEntries = workBox.values.where((e) => e.stop == null).toList();
       final runningEntry = runningEntries.isNotEmpty ? runningEntries.last : null;
       await _workStatusNotificationService.updateStatus(runningEntry);
+      await HomeWidgetService.updateFromEntry(runningEntry);
     } catch (e) {
       debugPrint('Error updating work status notification: $e');
     }
