@@ -387,6 +387,7 @@ class BackupService {
     'longitude': z.longitude,
     'radius': z.radius,
     'isActive': z.isActive,
+    'defaultWorkModeIndex': z.defaultWorkModeIndex,
   };
 
   GeofenceZone _zoneFromJson(Map<String, dynamic> json) => GeofenceZone(
@@ -396,6 +397,7 @@ class BackupService {
     longitude: (json['longitude']).toDouble(),
     radius: (json['radius'] ?? 150.0).toDouble(),
     isActive: json['isActive'] ?? true,
+    defaultWorkModeIndex: json['defaultWorkModeIndex'] ?? 0,
   );
 }
 

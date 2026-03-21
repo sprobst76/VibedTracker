@@ -491,9 +491,41 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       final runningEntry = runningEntries.isNotEmpty ? runningEntries.last : null;
       await _workStatusNotificationService.updateStatus(runningEntry);
       await HomeWidgetService.updateFromEntry(runningEntry);
+      await _checkDailyTarget(workBox.values.toList());
     } catch (e) {
       debugPrint('Error updating work status notification: $e');
     }
+  }
+
+  /// Prüft ob das Tagessoll heute überschritten wurde und sendet ggf. Benachrichtigung.
+  Future<void> _checkDailyTarget(List<WorkEntry> allEntries) async {
+    final settings = ref.read(settingsProvider);
+    if (!settings.enableReminders) return;
+
+    final today = DateTime.now();
+    final todayEntries = allEntries.where((e) =>
+        e.start.year == today.year &&
+        e.start.month == today.month &&
+        e.start.day == today.day);
+
+    var netMinutes = 0;
+    for (final e in todayEntries) {
+      final stop = e.stop ?? DateTime.now();
+      final gross = stop.difference(e.start).inMinutes;
+      var pauseMin = 0;
+      for (final p in e.pauses) {
+        pauseMin += (p.end ?? DateTime.now()).difference(p.start).inMinutes;
+      }
+      netMinutes += (gross - pauseMin).clamp(0, 9999);
+    }
+
+    final dailyTargetMinutes =
+        (settings.weeklyHours / settings.workingDaysPerWeek * 60).round();
+
+    await _reminderService.notifyDailyTargetIfReached(
+      netMinutes: netMinutes,
+      targetMinutes: dailyTargetMinutes,
+    );
   }
 
   Future<void> _updateStatus() async {
