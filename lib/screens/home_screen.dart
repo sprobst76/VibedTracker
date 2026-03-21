@@ -25,6 +25,7 @@ import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
 import 'overtime_screen.dart';
+import '../services/overtime_service.dart';
 import 'projects_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
@@ -622,7 +623,9 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
           ] else ...[
             // Mobile: Vertical layout
             _buildStatusCard(running, isPaused, last),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            _buildWeekOvertimeChip(entries),
+            const SizedBox(height: 8),
             if (_setupWarnings.isNotEmpty) _buildSetupWarnings(),
             if (_missingDays.isNotEmpty) ...[
               _buildMissingDaysCard(),
@@ -1572,6 +1575,85 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// Kleines Chip-Widget mit der Wochenbilanz (Überstunden/Minderstunden).
+  /// Tippt man drauf, öffnet sich der Überstundenbildschirm.
+  Widget _buildWeekOvertimeChip(List<WorkEntry> entries) {
+    final settings = ref.watch(settingsProvider);
+    final vacations = ref.watch(vacationProvider);
+    final periods = ref.watch(weeklyHoursPeriodsProvider);
+
+    final now = DateTime.now();
+    final weekStart = DateTime(
+        now.year, now.month, now.day - (now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final result = OvertimeService.calculate(
+      from: weekStart,
+      to: weekEnd,
+      entries: entries,
+      settings: settings,
+      periods: periods,
+      holidays: const {},   // Feiertage weglassen (schnelle Anzeige)
+      absences: vacations,
+      today: now,
+    );
+
+    final balance = result.balanceHours;
+    final isPos = balance >= 0;
+    final abs = balance.abs();
+    final h = abs.floor();
+    final m = ((abs - h) * 60).round();
+    final label = m == 0 ? '${h}h' : '${h}h ${m}m';
+    final sign = isPos ? '+' : '−';
+
+    final chipColor = balance == 0
+        ? Colors.grey
+        : isPos
+            ? Colors.green.shade700
+            : Colors.red.shade700;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const OvertimeScreen()),
+        ),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: chipColor.withAlpha(20),
+            border: Border.all(color: chipColor.withAlpha(80)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.timelapse, size: 14, color: chipColor),
+              const SizedBox(width: 5),
+              Text(
+                'KW ${_isoWeekNumber(weekStart)}: $sign$label',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: chipColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static int _isoWeekNumber(DateTime date) {
+    final thursday = date.add(Duration(days: 3 - (date.weekday - 1)));
+    final jan4 = DateTime(thursday.year, 1, 4);
+    final startOfWeek1 = jan4.subtract(Duration(days: jan4.weekday - 1));
+    return ((thursday.difference(startOfWeek1).inDays) ~/ 7) + 1;
   }
 
   Widget _buildMissingDaysCard() {
