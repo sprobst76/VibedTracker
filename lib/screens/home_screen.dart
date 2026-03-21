@@ -24,6 +24,7 @@ import '../theme/theme_colors.dart';
 import 'settings_screen.dart';
 import 'vacation_screen.dart';
 import 'report_screen.dart';
+import 'overtime_screen.dart';
 import 'entry_edit_screen.dart';
 import '../widgets/copy_entry_dialog.dart';
 import '../widgets/pomodoro_card.dart';
@@ -619,6 +620,14 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ReportScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.timelapse),
+            tooltip: 'Überstundenkonto',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OvertimeScreen()),
             ),
           ),
           IconButton(
