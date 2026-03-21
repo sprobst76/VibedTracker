@@ -1,104 +1,167 @@
 import 'dart:async';
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_entry.dart';
+import 'notification_dispatcher.dart';
 
-/// Service für persistente Statusanzeige in der Benachrichtigungsleiste
-/// Zeigt an ob Arbeitszeit läuft oder pausiert ist
+/// Service für persistente Statusanzeige in der Benachrichtigungsleiste.
+///
+/// Zeigt während einer aktiven Session eine Ongoing-Notification mit:
+/// - Startzeit und bisheriger Netto-Arbeitszeit (via nativer Chronometer)
+/// - Aktuelle Pause-Dauer (falls pausiert)
+/// - [Pause / Fortsetzen] und [Stopp] Buttons
+///
+/// Die Notification ist nicht wischbar (ongoing: true).
+/// Nutzt NotificationDispatcher — keine eigene initialize()-Initialisierung.
 class WorkStatusNotificationService {
   static final WorkStatusNotificationService _instance =
       WorkStatusNotificationService._internal();
   factory WorkStatusNotificationService() => _instance;
   WorkStatusNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
-  Timer? _updateTimer;
+  Timer? _pauseUpdateTimer; // Nur für Pause-Anzeige nötig (kein Chronometer)
 
-  // Notification IDs
+  // Notification-IDs
   static const int _statusNotificationId = 200;
 
-  // Channel ID
+  // Channel
   static const String _channelId = 'work_status_channel';
 
-  /// Initialisiert den Service
+  // Action-IDs
+  static const String actionStop   = 'work_action_stop';
+  static const String actionPause  = 'work_action_pause';
+  static const String actionResume = 'work_action_resume';
+
+  // SharedPreferences-Key für pending Actions (Background)
+  static const String _pendingActionKey = 'work_status_pending_action';
+
+  // Callback: HomeScreen registriert sich für direkte Verarbeitung (Foreground)
+  void Function(String action)? _actionCallback;
+
+  /// Registriert einen Callback für Stopp/Pause/Fortsetzen-Actions.
+  void setActionCallback(void Function(String action) callback) {
+    _actionCallback = callback;
+  }
+
+  /// Initialisiert Channel und registriert Handler am NotificationDispatcher.
   Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
+    await NotificationDispatcher.instance.createChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        'Arbeitszeit-Status',
+        description: 'Zeigt den aktuellen Status der Arbeitszeit an',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+        showBadge: false,
+      ),
     );
 
-    await _notifications.initialize(initSettings);
-
-    // Low-Priority Channel für Status-Notification (kein Sound, minimale Störung)
-    const channel = AndroidNotificationChannel(
-      _channelId,
-      'Arbeitszeit-Status',
-      description: 'Zeigt den aktuellen Status der Arbeitszeit an',
-      importance: Importance.low, // Kein Sound, nur in Statusleiste
-      playSound: false,
-      enableVibration: false,
-      showBadge: false,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    NotificationDispatcher.instance.register(_onNotificationResponse);
 
     _initialized = true;
-    debugPrint('WorkStatusNotificationService initialized');
+    log('WorkStatusNotificationService initialized', name: 'WorkStatusNotificationService');
   }
 
-  /// Zeigt die Arbeitszeit-läuft Notification
+  // ── Öffentliche API ──────────────────────────────────────────────────────────
+
+  /// Aktualisiert den Status basierend auf dem aktuellen WorkEntry.
+  Future<void> updateStatus(WorkEntry? runningEntry) async {
+    if (runningEntry == null || runningEntry.stop != null) {
+      await hideNotification();
+    } else {
+      await showRunningNotification(runningEntry);
+    }
+  }
+
+  /// Zeigt oder aktualisiert die Ongoing-Notification für einen laufenden Entry.
   Future<void> showRunningNotification(WorkEntry entry) async {
     await init();
-
-    // Timer für regelmäßige Updates starten
-    _startUpdateTimer(entry);
-
-    await _updateRunningNotification(entry);
+    _startPauseTimer(entry);
+    await _sendNotification(entry);
   }
 
-  /// Aktualisiert die laufende Notification
-  Future<void> _updateRunningNotification(WorkEntry entry) async {
-    final duration = DateTime.now().difference(entry.start);
+  /// Zeigt die Pause-Notification (delegiert an showRunningNotification).
+  Future<void> showPausedNotification(WorkEntry entry) async {
+    await showRunningNotification(entry);
+  }
 
-    // Pausen-Zeit abziehen für Netto-Arbeitszeit
+  /// Entfernt die Status-Notification aus der Statusleiste.
+  Future<void> hideNotification() async {
+    _stopPauseTimer();
+    await NotificationDispatcher.instance.plugin.cancel(_statusNotificationId);
+  }
+
+  /// Liest und verarbeitet eine ausstehende Action (Background-Fallback).
+  /// Gibt 'stop', 'pause', 'resume' oder null zurück.
+  static Future<String?> consumePendingAction() async {
+    final prefs = await SharedPreferences.getInstance();
+    final action = prefs.getString(_pendingActionKey);
+    if (action != null) await prefs.remove(_pendingActionKey);
+    return action;
+  }
+
+  // ── Notification ──────────────────────────────────────────────────────────
+
+  Future<void> _sendNotification(WorkEntry entry) async {
+    final inPause = entry.pauses.isNotEmpty && entry.pauses.last.end == null;
     final pauseDuration = _calculatePauseDuration(entry);
-    final netDuration = duration - pauseDuration;
-    final netDurationStr = _formatDuration(netDuration);
+    final netDuration = DateTime.now().difference(entry.start) - pauseDuration;
 
     String title;
     String body;
-    int color;
+    int colorHex;
+    List<AndroidNotificationAction> actions;
 
-    if (entry.pauses.isNotEmpty && entry.pauses.last.end == null) {
-      // Aktuell in Pause
-      final currentPauseDuration =
-          DateTime.now().difference(entry.pauses.last.start);
-      title = '⏸️ Pause';
-      body = 'Pausiert seit ${_formatDuration(currentPauseDuration)}\n'
-          'Arbeitszeit: $netDurationStr';
-      color = 0xFFFF9800; // Orange
+    if (inPause) {
+      final currentPause = DateTime.now().difference(entry.pauses.last.start);
+      title = 'Pause';
+      body = 'Pausiert seit ${_fmtDuration(currentPause)}'
+          ' · Gearbeitet: ${_fmtDuration(netDuration)}';
+      colorHex = 0xFFFF9800; // Orange
+      actions = const [
+        AndroidNotificationAction(
+          actionResume,
+          'Fortsetzen',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          actionStop,
+          'Stopp',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+      ];
     } else {
-      // Arbeitet
-      title = '▶️ Arbeitszeit läuft';
-      body = 'Seit ${_formatTime(entry.start)} • $netDurationStr';
+      title = 'Arbeitszeit läuft';
+      body = 'Seit ${_fmtTime(entry.start)} · ${_fmtDuration(netDuration)}';
       if (pauseDuration.inMinutes > 0) {
-        body += '\nPausen: ${_formatDuration(pauseDuration)}';
+        body += ' · Pausen: ${_fmtDuration(pauseDuration)}';
       }
-      color = 0xFF4CAF50; // Grün
+      colorHex = 0xFF4CAF50; // Grün
+      actions = const [
+        AndroidNotificationAction(
+          actionPause,
+          'Pause',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          actionStop,
+          'Stopp',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+      ];
     }
 
-    await _notifications.show(
+    await NotificationDispatcher.instance.plugin.show(
       _statusNotificationId,
       title,
       body,
@@ -109,56 +172,69 @@ class WorkStatusNotificationService {
           channelDescription: 'Zeigt den aktuellen Status der Arbeitszeit an',
           importance: Importance.low,
           priority: Priority.low,
-          ongoing: true, // Kann nicht weggewischt werden
+          ongoing: true,
           autoCancel: false,
-          showWhen: false,
+          showWhen: !inPause,
           playSound: false,
           enableVibration: false,
           icon: '@mipmap/ic_launcher',
-          color: Color(color),
+          color: Color(colorHex),
           category: AndroidNotificationCategory.status,
           visibility: NotificationVisibility.public,
-          // Chronometer für automatische Zeit-Aktualisierung
-          usesChronometer: entry.pauses.isEmpty ||
-              entry.pauses.last.end != null, // Nur wenn nicht pausiert
-          when: entry.pauses.isEmpty || entry.pauses.last.end != null
-              ? entry.start.millisecondsSinceEpoch
-              : null,
+          // Chronometer nur bei laufender Arbeit (native Zeit-Anzeige ohne Timer)
+          usesChronometer: !inPause,
+          chronometerCountDown: false,
+          when: !inPause ? entry.start.millisecondsSinceEpoch : null,
+          actions: actions,
         ),
         iOS: const DarwinNotificationDetails(),
       ),
     );
   }
 
-  /// Zeigt die Pause-Notification
-  Future<void> showPausedNotification(WorkEntry entry) async {
-    await init();
-    await _updateRunningNotification(entry);
+  // ── Handler ──────────────────────────────────────────────────────────────────
+
+  void _onNotificationResponse(NotificationResponse response) {
+    final actionId = response.actionId;
+    if (actionId == null) return;
+    if (actionId != actionStop && actionId != actionPause && actionId != actionResume) return;
+
+    log('WorkStatus action: $actionId', name: 'WorkStatusNotificationService');
+
+    if (_actionCallback != null) {
+      _actionCallback!(actionId);
+    } else {
+      // App war nicht bereit → für späteren Resume speichern
+      _savePendingAction(actionId);
+    }
   }
 
-  /// Entfernt die Status-Notification
-  Future<void> hideNotification() async {
-    _stopUpdateTimer();
-    await _notifications.cancel(_statusNotificationId);
-    debugPrint('Work status notification hidden');
+  static Future<void> _savePendingAction(String action) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingActionKey, action);
   }
 
-  /// Startet den Timer für regelmäßige Updates
-  void _startUpdateTimer(WorkEntry entry) {
-    _stopUpdateTimer();
-    // Update alle 30 Sekunden (für Pause-Anzeige)
-    _updateTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _updateRunningNotification(entry);
-    });
+  // ── Pause-Timer ───────────────────────────────────────────────────────────────
+
+  /// Timer nur für die Pause-Anzeige (aktualisiert alle 30s während Pause).
+  /// Während normaler Arbeit übernimmt der native Chronometer.
+  void _startPauseTimer(WorkEntry entry) {
+    _stopPauseTimer();
+    final inPause = entry.pauses.isNotEmpty && entry.pauses.last.end == null;
+    if (inPause) {
+      _pauseUpdateTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _sendNotification(entry);
+      });
+    }
   }
 
-  /// Stoppt den Update-Timer
-  void _stopUpdateTimer() {
-    _updateTimer?.cancel();
-    _updateTimer = null;
+  void _stopPauseTimer() {
+    _pauseUpdateTimer?.cancel();
+    _pauseUpdateTimer = null;
   }
 
-  /// Berechnet die gesamte Pausendauer
+  // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
+
   Duration _calculatePauseDuration(WorkEntry entry) {
     var total = Duration.zero;
     for (final pause in entry.pauses) {
@@ -168,28 +244,13 @@ class WorkStatusNotificationService {
     return total;
   }
 
-  /// Formatiert Zeit für Anzeige (HH:MM)
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:'
-        '${time.minute.toString().padLeft(2, '0')}';
-  }
+  String _fmtTime(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  /// Formatiert Dauer für Anzeige
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}min';
-    }
-    return '${minutes}min';
-  }
-
-  /// Aktualisiert den Status basierend auf dem aktuellen WorkEntry
-  Future<void> updateStatus(WorkEntry? runningEntry) async {
-    if (runningEntry == null || runningEntry.stop != null) {
-      await hideNotification();
-    } else {
-      await showRunningNotification(runningEntry);
-    }
+  String _fmtDuration(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    if (h > 0) return '${h}h ${m}min';
+    return '${m}min';
   }
 }

@@ -64,6 +64,8 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _syncService = GeofenceSyncService(Hive.box<WorkEntry>('work'));
+    // Callback für Notification-Actions (Stopp/Pause/Fortsetzen aus Statusleiste)
+    _workStatusNotificationService.setActionCallback(_handleNotificationAction);
     _initialize();
     // Alle 30 Sekunden Queue verarbeiten + Status aktualisieren (nur Mobile)
     if (!kIsWeb) {
@@ -520,6 +522,35 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     await entry.save();
     ref.invalidate(workListProvider);
     await _updateWorkStatusNotification();
+  }
+
+  /// Verarbeitet Stopp/Pause/Fortsetzen aus der Ongoing-Notification.
+  Future<void> _handleNotificationAction(String actionId) async {
+    final workBox = Hive.box<WorkEntry>('work');
+    final running = workBox.values.where((e) => e.stop == null).lastOrNull;
+    if (running == null) return;
+
+    switch (actionId) {
+      case WorkStatusNotificationService.actionStop:
+        running.stop = DateTime.now();
+        // Aktive Pause schließen falls vorhanden
+        final activePause = _getActivePause(running);
+        if (activePause != null) activePause.end = DateTime.now();
+        await running.save();
+        ref.invalidate(workListProvider);
+        await _updateWorkStatusNotification();
+        break;
+
+      case WorkStatusNotificationService.actionPause:
+        final pause = _getActivePause(running);
+        if (pause == null) await _startPause(running);
+        break;
+
+      case WorkStatusNotificationService.actionResume:
+        final pause = _getActivePause(running);
+        if (pause != null) await _endPause(running, pause);
+        break;
+    }
   }
 
   Duration _getTotalPauseDuration(WorkEntry entry) {

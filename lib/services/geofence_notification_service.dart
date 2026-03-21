@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_entry.dart';
+import 'notification_dispatcher.dart';
 
 /// Notification-Typ für Geofence-Events
 enum GeofenceNotificationType { autoStart, autoStop, merge }
@@ -59,8 +60,8 @@ class GeofenceNotificationService {
   factory GeofenceNotificationService() => _instance;
   GeofenceNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsPlugin get _notifications =>
+      NotificationDispatcher.instance.plugin;
   bool _initialized = false;
 
   // Notification IDs
@@ -79,36 +80,16 @@ class GeofenceNotificationService {
   Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+    // Dispatcher initialisieren (idempotent) und Handler registrieren
+    NotificationDispatcher.instance.register(_onNotificationResponse);
+    await NotificationDispatcher.instance.createChannel(
+      const AndroidNotificationChannel(
+        'geofence_channel',
+        'Automatische Zeiterfassung',
+        description: 'Benachrichtigungen wenn Arbeitszeit automatisch gestartet/gestoppt wird',
+        importance: Importance.high,
+      ),
     );
-
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
-
-    await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationResponse,
-    );
-
-    // Geofence Notification Channel erstellen
-    const channel = AndroidNotificationChannel(
-      'geofence_channel',
-      'Automatische Zeiterfassung',
-      description: 'Benachrichtigungen wenn Arbeitszeit automatisch gestartet/gestoppt wird',
-      importance: Importance.high,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
 
     _initialized = true;
     debugPrint('GeofenceNotificationService initialized');
@@ -281,25 +262,6 @@ class GeofenceNotificationService {
     // actionDismiss braucht keine Behandlung - Notification wird geschlossen
   }
 
-  /// Handler für Notification-Interaktionen (Background)
-  @pragma('vm:entry-point')
-  static void _onBackgroundNotificationResponse(NotificationResponse response) {
-    // Im Background können wir nicht direkt auf Hive zugreifen
-    // Speichere die Objection für spätere Verarbeitung
-    if (response.actionId == actionObjection && response.payload != null) {
-      _savePendingObjection(response.payload!);
-    }
-  }
-
-  /// Speichert eine pending Objection für spätere Verarbeitung
-  static Future<void> _savePendingObjection(String payload) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existing = prefs.getStringList(_pendingObjectionKey) ?? [];
-    existing.add(payload);
-    await prefs.setStringList(_pendingObjectionKey, existing);
-    debugPrint('Saved pending objection for later processing');
-  }
-
   /// Verarbeitet Einspruch (löscht oder korrigiert den Eintrag)
   Future<void> _handleObjection(String? payloadStr) async {
     final payload = GeofenceNotificationPayload.decode(payloadStr);
@@ -340,13 +302,14 @@ class GeofenceNotificationService {
     }
   }
 
-  /// Prüft und verarbeitet pending Objections (beim App-Start aufrufen)
+  /// Prüft und verarbeitet pending Objections (beim App-Start aufrufen).
+  ///
+  /// Verarbeitet sowohl Legacy-Liste (alter Mechanismus) als auch
+  /// neue Dispatcher-basierte Background-Actions.
   Future<int> processPendingObjections() async {
+    // Legacy: Liste aus altem System (SharedPreferences-Liste)
     final prefs = await SharedPreferences.getInstance();
     final pending = prefs.getStringList(_pendingObjectionKey) ?? [];
-
-    if (pending.isEmpty) return 0;
-
     var processed = 0;
     for (final payloadStr in pending) {
       final payload = GeofenceNotificationPayload.decode(payloadStr);
@@ -355,9 +318,11 @@ class GeofenceNotificationService {
         if (success) processed++;
       }
     }
+    if (pending.isNotEmpty) await prefs.remove(_pendingObjectionKey);
 
-    // Pending Liste leeren
-    await prefs.remove(_pendingObjectionKey);
+    // Neu: Dispatcher-basierte Background-Actions (dispatcht an alle Handler)
+    await NotificationDispatcher.instance.processPendingBackgroundActions();
+
     debugPrint('Processed $processed pending objections');
     return processed;
   }

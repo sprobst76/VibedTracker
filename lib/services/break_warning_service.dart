@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/work_entry.dart';
+import 'notification_dispatcher.dart';
 
 /// Schwellenwerte nach § 4 ArbZG (Arbeitszeitgesetz)
 ///
@@ -14,8 +15,8 @@ class BreakWarningService {
   factory BreakWarningService() => _instance;
   BreakWarningService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsPlugin get _notifications =>
+      NotificationDispatcher.instance.plugin;
   bool _initialized = false;
 
   // Notification-IDs
@@ -40,27 +41,16 @@ class BreakWarningService {
   Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: DarwinInitializationSettings(),
+    await NotificationDispatcher.instance.createChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        'Pausenpflicht-Warnung',
+        description: 'Warnt wenn gesetzliche Pausenpflicht nach § 4 ArbZG fällig ist',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
     );
-    await _notifications.initialize(initSettings);
-
-    const channel = AndroidNotificationChannel(
-      _channelId,
-      'Pausenpflicht-Warnung',
-      description: 'Warnt wenn gesetzliche Pausenpflicht nach § 4 ArbZG fällig ist',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
 
     _initialized = true;
     log('BreakWarningService initialized', name: 'BreakWarningService');
