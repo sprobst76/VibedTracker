@@ -4,6 +4,7 @@ import 'package:geofence_foreground_service/geofence_foreground_service.dart';
 import 'package:hive/hive.dart';
 import '../models/work_entry.dart';
 import '../models/geofence_zone.dart';
+import '../models/pause.dart';
 import 'background_sync_service.dart';
 import 'geofence_event_log.dart';
 import 'geofence_event_queue.dart';
@@ -88,14 +89,17 @@ class GeofenceSyncService {
       return;
     }
 
-    // Re-Entry-Merge: Wurde die Session kürzlich durch GPS-Drift gestoppt?
+    // Re-Entry-Merge / Automatische Kurzpausen-Erkennung:
     // Wenn der Re-Entry innerhalb der Grace-Period nach dem letzten Stop liegt,
-    // wird die vorhandene Session wieder geöffnet statt eine neue zu starten.
+    // wird die Abwesenheit als Pause verbucht statt eine neue Session zu starten.
     final recentStopped = _getRecentlyStoppedEntry(event.timestamp);
     if (recentStopped != null) {
-      final gap = event.timestamp.difference(recentStopped.stop!);
+      final exitTime = recentStopped.stop!;
+      final gap = event.timestamp.difference(exitTime);
       log('GeofenceSyncService: Re-entry ${gap.inMinutes}min after stop – '
-          'merging back into session started at ${recentStopped.start}');
+          'recording as short break in session started at ${recentStopped.start}');
+      // Abwesenheitszeit als geschlossene Pause eintragen
+      recentStopped.pauses.add(Pause(start: exitTime, end: event.timestamp));
       recentStopped.stop = null;
       await recentStopped.save();
 
