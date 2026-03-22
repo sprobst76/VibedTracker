@@ -563,6 +563,9 @@ final geofenceZonesProvider = StateNotifierProvider<GeofenceZonesNotifier, List<
   return GeofenceZonesNotifier(box);
 });
 
+// Sentinel für "Wert nicht geändert" in updateZone
+const _unchanged = Object();
+
 class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
   final Box<GeofenceZone> box;
 
@@ -586,6 +589,7 @@ class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
     double? newRadius,
     bool? newIsActive,
     int? newDefaultWorkModeIndex,
+    Object? newWifiSSID = _unchanged,
   }) async {
     if (newName != null) zone.name = newName;
     if (newLatitude != null) zone.latitude = newLatitude;
@@ -593,6 +597,7 @@ class GeofenceZonesNotifier extends StateNotifier<List<GeofenceZone>> {
     if (newRadius != null) zone.radius = newRadius;
     if (newIsActive != null) zone.isActive = newIsActive;
     if (newDefaultWorkModeIndex != null) zone.defaultWorkModeIndex = newDefaultWorkModeIndex;
+    if (!identical(newWifiSSID, _unchanged)) zone.wifiSSID = newWifiSSID as String?;
     await zone.save();
     _refresh();
   }

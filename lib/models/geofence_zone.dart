@@ -27,6 +27,10 @@ class GeofenceZone extends HiveObject {
   @HiveField(6)
   int defaultWorkModeIndex;
 
+  /// Optionaler WiFi-SSID-Name für WiFi-basierte Zonenerkennung (null = deaktiviert)
+  @HiveField(7)
+  String? wifiSSID;
+
   GeofenceZone({
     required this.id,
     required this.name,
@@ -35,6 +39,7 @@ class GeofenceZone extends HiveObject {
     this.radius = 150.0,
     this.isActive = true,
     this.defaultWorkModeIndex = 0,
+    this.wifiSSID,
   });
 
   /// Prüft ob ein Punkt innerhalb des Geofence liegt

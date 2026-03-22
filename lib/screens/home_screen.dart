@@ -34,6 +34,7 @@ import '../widgets/pomodoro_card.dart';
 import '../services/location_tracking_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/overtime_alert_service.dart';
+import '../services/wifi_zone_service.dart';
 import 'calendar_overview_screen.dart';
 import '../widgets/responsive_shell.dart';
 
@@ -67,6 +68,9 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   // Auto-Pause: Zeitstempel wann App in den Hintergrund ging
   DateTime? _backgroundSince;
 
+  // WiFi-Zone-Erkennung
+  final _wifiZoneService = WifiZoneService();
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +95,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     _refreshTimer?.cancel();
     _serviceHealthTimer?.cancel();
+    _wifiZoneService.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -218,6 +223,23 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('OvertimeAlertService check error: $e');
     }
+  }
+
+  /// Callback vom WifiZoneService wenn eine bekannte Zone verlassen wird.
+  /// Bietet Pause-Dialog an, wenn eine Session läuft und Auto-Pause aktiv ist.
+  void _onWifiZoneExit(DateTime since) {
+    final settings = ref.read(settingsProvider);
+    if (!settings.enableAutoPause) return;
+    final running = Hive.box<WorkEntry>('work')
+        .values
+        .where((e) => e.stop == null)
+        .lastOrNull;
+    if (running == null) return;
+    final activePause = running.pauses.where((p) => p.end == null).firstOrNull;
+    if (activePause != null) return;
+    final gapMinutes = DateTime.now().difference(since).inMinutes;
+    if (gapMinutes < settings.autoPauseThresholdMinutes) return;
+    _showAutoPauseDialog(running, since, DateTime.now(), gapMinutes);
   }
 
   /// Prüft ob der Geofence-Service noch läuft, startet ihn bei Bedarf neu.
@@ -394,6 +416,15 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
         await OvertimeAlertService.init();
       } catch (e) {
         debugPrint('OvertimeAlertService init error: $e');
+      }
+
+      try {
+        final zones = ref.read(geofenceZonesProvider);
+        _wifiZoneService.onZoneEvent = () => _syncPendingEvents();
+        _wifiZoneService.onExitZone = _onWifiZoneExit;
+        await _wifiZoneService.init(zones);
+      } catch (e) {
+        debugPrint('WifiZoneService init error: $e');
       }
 
       try {
@@ -718,6 +749,11 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // WiFi-Zonen reaktiv nachführen
+    ref.listen(geofenceZonesProvider, (_, zones) {
+      _wifiZoneService.updateZones(zones);
+    });
+
     final entries = ref.watch(workListProvider);
     // Robuste Erkennung: nicht entries.last, sondern gezielt den offenen Eintrag suchen
     final openEntries = entries.where((e) => e.stop == null).toList();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import '../models/geofence_zone.dart';
 import '../models/work_entry.dart';
 import '../providers.dart';
@@ -152,7 +153,8 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          '${workMode.label} · Radius: ${zone.radius.round()}m\n'
+          '${workMode.label} · Radius: ${zone.radius.round()}m'
+          '${zone.wifiSSID != null && zone.wifiSSID!.isNotEmpty ? ' · 📶 ${zone.wifiSSID}' : ''}\n'
           '${zone.latitude.toStringAsFixed(5)}, ${zone.longitude.toStringAsFixed(5)}',
         ),
         isThreeLine: true,
@@ -229,10 +231,12 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
     double radius = zone?.radius ?? 150;
     bool isActive = zone?.isActive ?? true;
     int selectedWorkModeIndex = zone?.defaultWorkModeIndex ?? 0;
+    String wifiSSID = zone?.wifiSSID ?? '';
 
     final nameController = TextEditingController(text: name);
     final latController = TextEditingController(text: latitude.toString());
     final lngController = TextEditingController(text: longitude.toString());
+    final wifiController = TextEditingController(text: wifiSSID);
 
     await showDialog(
       context: context,
@@ -392,6 +396,49 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // WiFi-SSID
+                const Text('WiFi-Netz (optional)',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  'Verbindung/Trennung dieses Netzes löst automatisch Start/Stop aus.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: wifiController,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'z.B. Büro-WLAN',
+                          prefixIcon: Icon(Icons.wifi),
+                        ),
+                        onChanged: (v) => wifiSSID = v.trim(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.outlined(
+                      icon: const Icon(Icons.my_location, size: 20),
+                      tooltip: 'Aktuelles Netz übernehmen',
+                      onPressed: () async {
+                        try {
+                          final raw = await NetworkInfo().getWifiName();
+                          if (raw != null && raw.isNotEmpty) {
+                            final ssid = raw.replaceAll('"', '').trim();
+                            setDialogState(() {
+                              wifiSSID = ssid;
+                              wifiController.text = ssid;
+                            });
+                          }
+                        } catch (_) {}
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
                 // Active Toggle
                 Row(
                   children: [
@@ -419,6 +466,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                   ? null
                   : () async {
                       final notifier = ref.read(geofenceZonesProvider.notifier);
+                      final ssidValue = wifiSSID.isEmpty ? null : wifiSSID;
                       if (isEdit) {
                         await notifier.updateZone(
                           zone,
@@ -428,6 +476,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           newRadius: radius,
                           newIsActive: isActive,
                           newDefaultWorkModeIndex: selectedWorkModeIndex,
+                          newWifiSSID: ssidValue,
                         );
                       } else {
                         await notifier.addZone(GeofenceZone(
@@ -438,6 +487,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           radius: radius,
                           isActive: isActive,
                           defaultWorkModeIndex: selectedWorkModeIndex,
+                          wifiSSID: ssidValue,
                         ));
                       }
                       if (context.mounted) Navigator.pop(context);

@@ -1,6 +1,6 @@
 name: time_tracker
 description: Zeiterfassung mit Geofence, Urlaub, Feiertagen & ICS-Sync
-version: 0.1.0-beta.62+62
+version: 0.1.0-beta.63+63
 publish_to: 'none'
 
 environment:
@@ -47,6 +47,8 @@ dependencies:
   qr_flutter: ^4.1.0
   file_picker: ^8.0.0              # Dateiauswahl für Import
   workmanager: ^0.9.0             # Periodische Hintergrund-Sync-Tasks
+  connectivity_plus: ^6.0.0      # Netzwerkstatus-Events (WiFi/Mobile/Offline)
+  network_info_plus: ^6.0.0      # SSID des aktuell verbundenen WiFi-Netzes
 
 dev_dependencies:
   flutter_test:
