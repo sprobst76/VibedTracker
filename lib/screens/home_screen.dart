@@ -64,6 +64,9 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   String? _cloudSyncError;
   bool _isCloudSyncing = false;
 
+  // Auto-Pause: Zeitstempel wann App in den Hintergrund ging
+  DateTime? _backgroundSince;
+
   @override
   void initState() {
     super.initState();
@@ -95,7 +98,10 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused) {
+      _backgroundSince = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      _checkAutoPause();
       _syncPendingEventsAndCheckFlag();
       // Service prüfen wenn App in den Vordergrund kommt
       if (!kIsWeb) {
@@ -105,6 +111,69 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       }
     }
   }
+
+  /// Prüft ob die App lange genug im Hintergrund war, um eine Pause einzutragen.
+  void _checkAutoPause() {
+    final since = _backgroundSince;
+    _backgroundSince = null;
+    if (since == null || kIsWeb) return;
+
+    final settings = ref.read(settingsProvider);
+    if (!settings.enableAutoPause) return;
+
+    final gapMinutes = DateTime.now().difference(since).inMinutes;
+    if (gapMinutes < settings.autoPauseThresholdMinutes) return;
+
+    // Laufenden Eintrag ohne aktive Pause suchen
+    final workBox = Hive.box<WorkEntry>('work');
+    final running = workBox.values
+        .where((e) => e.stop == null)
+        .lastOrNull;
+    if (running == null) return;
+
+    final activePause = running.pauses.where((p) => p.end == null).firstOrNull;
+    if (activePause != null) return; // bereits in Pause
+
+    _showAutoPauseDialog(running, since, DateTime.now(), gapMinutes);
+  }
+
+  Future<void> _showAutoPauseDialog(
+    WorkEntry entry,
+    DateTime pauseStart,
+    DateTime pauseEnd,
+    int gapMinutes,
+  ) async {
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Pause erkannt'),
+        content: Text(
+          'Die App war $gapMinutes Minuten im Hintergrund.\n'
+          'Soll diese Zeit als Pause eingetragen werden?\n\n'
+          '${_fmtTime(pauseStart)} – ${_fmtTime(pauseEnd)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Nein'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pause eintragen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    entry.pauses.add(Pause(start: pauseStart, end: pauseEnd));
+    await entry.save();
+    ref.invalidate(workListProvider);
+    await _updateWorkStatusNotification();
+  }
+
+  String _fmtTime(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   /// Führt Sync durch und prüft ob der Background-Task einen ausstehenden
   /// Sync markiert hat (Doze-Modus: Hive war zu).

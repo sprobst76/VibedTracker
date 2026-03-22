@@ -42,13 +42,15 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       overtimeCarryoverMinutes: fields[22] as int,
       overtimeWarnHighHours: fields[23] as int,
       overtimeWarnLowHours: fields[24] as int,
+      enableAutoPause: fields[25] as bool,
+      autoPauseThresholdMinutes: fields[26] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(25)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -98,7 +100,11 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(23)
       ..write(obj.overtimeWarnHighHours)
       ..writeByte(24)
-      ..write(obj.overtimeWarnLowHours);
+      ..write(obj.overtimeWarnLowHours)
+      ..writeByte(25)
+      ..write(obj.enableAutoPause)
+      ..writeByte(26)
+      ..write(obj.autoPauseThresholdMinutes);
   }
 
   @override

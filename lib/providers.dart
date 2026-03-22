@@ -169,6 +169,16 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..overtimeWarnLowHours = hours.clamp(-999, -1);
     state.save();
   }
+
+  void updateAutoPauseEnabled(bool enabled) {
+    state = state..enableAutoPause = enabled;
+    state.save();
+  }
+
+  void updateAutoPauseThreshold(int minutes) {
+    state = state..autoPauseThresholdMinutes = minutes.clamp(5, 120);
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

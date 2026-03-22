@@ -321,6 +321,8 @@ class BackupService {
     'overtimeCarryoverMinutes': s.overtimeCarryoverMinutes,
     'overtimeWarnHighHours': s.overtimeWarnHighHours,
     'overtimeWarnLowHours': s.overtimeWarnLowHours,
+    'enableAutoPause': s.enableAutoPause,
+    'autoPauseThresholdMinutes': s.autoPauseThresholdMinutes,
   };
 
   Settings _settingsFromJson(Map<String, dynamic> json) => Settings(
@@ -341,6 +343,8 @@ class BackupService {
     overtimeCarryoverMinutes: json['overtimeCarryoverMinutes'] ?? 0,
     overtimeWarnHighHours: json['overtimeWarnHighHours'] ?? 40,
     overtimeWarnLowHours: json['overtimeWarnLowHours'] ?? -8,
+    enableAutoPause: json['enableAutoPause'] ?? true,
+    autoPauseThresholdMinutes: json['autoPauseThresholdMinutes'] ?? 15,
   );
 
   void _mergeSettings(Settings existing, Settings imported) {
@@ -354,6 +358,8 @@ class BackupService {
     existing.overtimeCarryoverMinutes = imported.overtimeCarryoverMinutes;
     existing.overtimeWarnHighHours = imported.overtimeWarnHighHours;
     existing.overtimeWarnLowHours = imported.overtimeWarnLowHours;
+    existing.enableAutoPause = imported.enableAutoPause;
+    existing.autoPauseThresholdMinutes = imported.autoPauseThresholdMinutes;
   }
 
   // Project

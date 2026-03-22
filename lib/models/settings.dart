@@ -61,6 +61,10 @@ class Settings extends HiveObject {
   int overtimeWarnHighHours; // Warnschwelle Überstunden (positiv, Standard: 40)
   @HiveField(24)
   int overtimeWarnLowHours; // Warnschwelle Minusstunden (negativ, Standard: -8)
+  @HiveField(25)
+  bool enableAutoPause; // Automatische Pausenerkennung bei Inaktivität
+  @HiveField(26)
+  int autoPauseThresholdMinutes; // Inaktivitätsschwelle in Minuten (Standard: 15)
 
   Settings({
     this.weeklyHours = 40.0,
@@ -86,8 +90,10 @@ class Settings extends HiveObject {
     this.pomodoroAutoStart = false, // Default: manuell
     this.pomodoroShowNotifications = true, // Default: Benachrichtigungen
     this.overtimeCarryoverMinutes = 0, // Default: kein Vortrag
-    this.overtimeWarnHighHours = 40,  // Default: +40h Warnung
-    this.overtimeWarnLowHours = -8,   // Default: -8h Warnung
+    this.overtimeWarnHighHours = 40,       // Default: +40h Warnung
+    this.overtimeWarnLowHours = -8,        // Default: -8h Warnung
+    this.enableAutoPause = true,           // Default: aktiviert
+    this.autoPauseThresholdMinutes = 15,   // Default: 15 Minuten
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück

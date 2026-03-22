@@ -68,6 +68,10 @@ class SettingsScreen extends ConsumerWidget {
           _buildPomodoroSection(context, ref, settings, notifier),
           const SizedBox(height: 16),
 
+          // Auto-Pause Section
+          _buildAutoPauseSection(context, settings, notifier),
+          const SizedBox(height: 16),
+
           // Überstunden-Warnungen Section
           _buildOvertimeAlertsSection(context, settings, notifier),
           const SizedBox(height: 16),
@@ -1060,6 +1064,76 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoPauseSection(
+      BuildContext context, Settings settings, SettingsNotifier notifier) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.pause_circle_outline,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Automatische Pausenerkennung',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Wenn die App X Minuten im Hintergrund war und eine Session läuft, '
+              'wird beim nächsten Öffnen eine Pause angeboten.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Pausenerkennung aktiviert'),
+              value: settings.enableAutoPause,
+              onChanged: notifier.updateAutoPauseEnabled,
+            ),
+            if (settings.enableAutoPause)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Mindestdauer'),
+                subtitle: Text('${settings.autoPauseThresholdMinutes} Minuten'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove),
+                      onPressed: settings.autoPauseThresholdMinutes > 5
+                          ? () => notifier.updateAutoPauseThreshold(
+                              settings.autoPauseThresholdMinutes - 5)
+                          : null,
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        '${settings.autoPauseThresholdMinutes}m',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: settings.autoPauseThresholdMinutes < 120
+                          ? () => notifier.updateAutoPauseThreshold(
+                              settings.autoPauseThresholdMinutes + 5)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
