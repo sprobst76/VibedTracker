@@ -14,6 +14,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.71] - 2026-03-22
+
+### Feature
+- **Backup-Restore UI**: "Wiederherstellen"-Button öffnet FilePicker (`.zip` + `.enc`); automatische Format-Erkennung — `.enc` fragt nach Passwort → AES-256-GCM Entschlüsselung, `.zip` direkt restore; Ergebnis-SnackBar mit Zusammenfassung der wiederhergestellten Daten
+
+---
+
 ## [0.1.0-beta.70] - 2026-03-22
 
 ### Sicherheit & Fixes

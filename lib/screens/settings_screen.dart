@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1480,7 +1482,7 @@ class SettingsScreen extends ConsumerWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => _showImportInfo(context, ref),
                     icon: const Icon(Icons.download),
-                    label: const Text('Importieren'),
+                    label: const Text('Wiederherstellen'),
                   ),
                 ),
               ],
@@ -1677,43 +1679,122 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  void _showImportInfo(BuildContext context, WidgetRef ref) {
+  Future<void> _showImportInfo(BuildContext context, WidgetRef ref) async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip', 'enc'],
+      withData: false,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    if (!context.mounted) return;
+
+    final path = picked.files.first.path;
+    if (path == null) return;
+
+    final file = File(path);
+    final isEncrypted = path.toLowerCase().endsWith('.enc');
+
+    if (isEncrypted) {
+      await _restoreEncrypted(context, file);
+    } else {
+      await _restorePlain(context, file);
+    }
+  }
+
+  Future<void> _restorePlain(BuildContext context, File file) async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Backup importieren'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Um ein Backup zu importieren:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 12),
-            Text('1. Öffne die Backup-ZIP-Datei auf deinem Gerät'),
-            SizedBox(height: 4),
-            Text('2. Wähle "Öffnen mit" → VibedTracker'),
-            SizedBox(height: 12),
-            Text(
-              'Alternativ: Backup-Datei in den Download-Ordner kopieren und App neu starten.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Hinweis: Bestehende Daten werden nicht überschrieben, nur ergänzt.',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-          ],
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final result = await BackupService().restoreFromFile(file);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      _showRestoreResult(context, result);
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Restore fehlgeschlagen: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _restoreEncrypted(BuildContext context, File file) async {
+    final controller = TextEditingController();
+    final passphrase = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Passwort eingeben'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Backup-Passwort',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) {
+            if (v.isNotEmpty) Navigator.pop(ctx, v);
+          },
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Verstanden'),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) Navigator.pop(ctx, controller.text);
+            },
+            child: const Text('Entschlüsseln'),
           ),
         ],
       ),
     );
+    if (passphrase == null || !context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final result = await BackupService().restoreFromEncryptedFile(file, passphrase);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      _showRestoreResult(context, result);
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Entschlüsselung fehlgeschlagen: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showRestoreResult(BuildContext context, BackupRestoreResult result) {
+    if (result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.totalRestored == 0
+              ? 'Keine neuen Daten gefunden (alles bereits vorhanden).'
+              : 'Wiederhergestellt: ${result.summary}'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restore fehlgeschlagen: ${result.error}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildCloudSyncSection(BuildContext context, WidgetRef ref) {
