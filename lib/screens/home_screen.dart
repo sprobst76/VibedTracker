@@ -678,6 +678,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _syncPendingEvents() async {
+    if (!mounted) return;
     final processedCount = await _syncService.syncPendingEvents();
     if (processedCount > 0) {
       ref.invalidate(workListProvider);

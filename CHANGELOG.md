@@ -14,6 +14,16 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ---
 
+## [0.1.0-beta.70] - 2026-03-22
+
+### Sicherheit & Fixes
+- **S1 — Verschlüsseltes Backup**: Neues "Verschlüsseltes Backup"-Feature mit AES-256-GCM + PBKDF2-SHA256 (200.000 Iterationen); Passwort-Dialog mit Bestätigungsfeld; `.enc`-Format mit JSON-Envelope (salt, nonce, mac, ciphertext)
+- **S2 — mounted-Guard**: `_syncPendingEvents()` in `home_screen.dart` prüft nun `if (!mounted) return;` vor async-Operationen (verhindert Fehler nach Widget-Dispose)
+- **P1 — _loadHolidays aus build()**: Initialer Holiday-Load in `initState` via `addPostFrameCallback`; Bundesland-Änderungen über `ref.listen` — kein async-Aufruf mehr direkt in `build()`
+- **Lint**: Ungenutzten `headerStyle` in `pdf_export_service.dart` entfernt
+
+---
+
 ## [0.1.0-beta.69] - 2026-03-22
 
 ### Tests

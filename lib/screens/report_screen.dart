@@ -41,6 +41,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settings = ref.read(settingsProvider);
+      _loadHolidays(settings.bundesland);
+    });
   }
 
   @override
@@ -317,9 +321,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     final periodsNotifier = ref.watch(weeklyHoursPeriodsProvider.notifier);
 
     // Lade Feiertage wenn sich das Bundesland ändert
-    if (_loadedBundesland != settings.bundesland) {
-      _loadHolidays(settings.bundesland);
-    }
+    ref.listen(settingsProvider, (prev, next) {
+      if (prev?.bundesland != next.bundesland) {
+        _loadHolidays(next.bundesland);
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

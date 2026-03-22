@@ -145,7 +145,6 @@ class PdfExportService {
   // ── Tabelle ──────────────────────────────────────────────────────────────────
 
   pw.Widget _buildTable(List<WorkEntry> sorted, List<Project> projects) {
-    const headerStyle = pw.TextStyle(fontSize: 9, color: PdfColors.white);
     const cellStyle   = pw.TextStyle(fontSize: 9);
     const headerBg    = PdfColors.blueGrey700;
 
@@ -163,8 +162,7 @@ class PdfExportService {
     return pw.TableHelper.fromTextArray(
       columnWidths: {for (var i = 0; i < widths.length; i++) i: widths[i]},
       headers: headers,
-      headerStyle: pw.TextStyle(
-          fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+      headerStyle: const pw.TextStyle(fontSize: 9, color: PdfColors.white),
       headerDecoration: const pw.BoxDecoration(color: headerBg),
       cellStyle: cellStyle,
       cellAlignments: {

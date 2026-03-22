@@ -1486,6 +1486,15 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _createEncryptedBackup(context),
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Verschlüsseltes Backup'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -1582,6 +1591,84 @@ class SettingsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Backup fehlgeschlagen: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createEncryptedBackup(BuildContext context) async {
+    final controller = TextEditingController();
+    final confirmController = TextEditingController();
+    final passphrase = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Verschlüsseltes Backup'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Backup wird mit einem Passwort verschlüsselt (AES-256-GCM). '
+                'Bewahre das Passwort sicher auf — ohne es kann das Backup nicht wiederhergestellt werden.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Passwort',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Passwort bestätigen',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.isEmpty) return;
+              if (controller.text != confirmController.text) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Passwörter stimmen nicht überein')),
+                );
+                return;
+              }
+              Navigator.pop(ctx, controller.text);
+            },
+            child: const Text('Erstellen'),
+          ),
+        ],
+      ),
+    );
+    if (passphrase == null || !context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final backupService = BackupService();
+      await backupService.shareEncryptedBackup(passphrase);
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verschlüsseltes Backup fehlgeschlagen: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

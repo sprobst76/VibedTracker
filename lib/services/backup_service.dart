@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -87,6 +90,154 @@ class BackupService {
       subject: 'VibedTracker Backup',
       text: 'VibedTracker Daten-Backup',
     );
+  }
+
+  /// Erstellt ein passphrase-verschlüsseltes Backup (AES-256-GCM + PBKDF2-SHA256)
+  Future<File> createEncryptedBackup(String passphrase) async {
+    final archive = Archive();
+
+    final metadata = {
+      'version': backupVersion,
+      'createdAt': DateTime.now().toIso8601String(),
+      'appVersion': '0.1.0',
+    };
+    archive.addFile(_createJsonFile('metadata.json', metadata));
+
+    final workBox = Hive.box<WorkEntry>('work');
+    archive.addFile(_createJsonFile('work_entries.json',
+        workBox.values.map(_workEntryToJson).toList()));
+
+    final vacationBox = Hive.box<Vacation>('vacations');
+    archive.addFile(_createJsonFile('vacations.json',
+        vacationBox.values.map(_vacationToJson).toList()));
+
+    final quotaBox = Hive.box<VacationQuota>('vacation_quotas');
+    archive.addFile(_createJsonFile('vacation_quotas.json',
+        quotaBox.values.map(_quotaToJson).toList()));
+
+    final settingsBox = Hive.box<Settings>('settings');
+    if (settingsBox.isNotEmpty) {
+      archive.addFile(_createJsonFile('settings.json',
+          _settingsToJson(settingsBox.getAt(0)!)));
+    }
+
+    final projectBox = Hive.box<Project>('projects');
+    archive.addFile(_createJsonFile('projects.json',
+        projectBox.values.map(_projectToJson).toList()));
+
+    final periodsBox = Hive.box<WeeklyHoursPeriod>('weekly_hours_periods');
+    archive.addFile(_createJsonFile('weekly_hours_periods.json',
+        periodsBox.values.map(_periodToJson).toList()));
+
+    final zonesBox = Hive.box<GeofenceZone>('geofence_zones');
+    archive.addFile(_createJsonFile('geofence_zones.json',
+        zonesBox.values.map(_zoneToJson).toList()));
+
+    final zipData = ZipEncoder().encode(archive);
+    if (zipData == null) throw Exception('Failed to create ZIP archive');
+
+    // PBKDF2-SHA256 key derivation
+    final rng = Random.secure();
+    final salt = Uint8List.fromList(List.generate(16, (_) => rng.nextInt(256)));
+    final nonce = Uint8List.fromList(List.generate(12, (_) => rng.nextInt(256)));
+
+    const kdfIterations = 200000;
+    final pbkdf2 = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: kdfIterations,
+      bits: 256,
+    );
+    final secretKey = await pbkdf2.deriveKey(
+      secretKey: SecretKey(utf8.encode(passphrase)),
+      nonce: salt,
+    );
+
+    // AES-256-GCM encryption
+    final algorithm = AesGcm.with256bits();
+    final secretBox = await algorithm.encrypt(
+      zipData,
+      secretKey: secretKey,
+      nonce: nonce,
+    );
+
+    // JSON envelope
+    final envelope = jsonEncode({
+      'v': 1,
+      'alg': 'AES-256-GCM',
+      'kdf': 'PBKDF2-SHA256',
+      'iter': kdfIterations,
+      'salt': base64Encode(salt),
+      'nonce': base64Encode(secretBox.nonce),
+      'mac': base64Encode(secretBox.mac.bytes),
+      'data': base64Encode(secretBox.cipherText),
+    });
+
+    final dir = await getApplicationDocumentsDirectory();
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+    final file = File('${dir.path}/vibedtracker_backup_$timestamp.enc');
+    await file.writeAsString(envelope);
+    return file;
+  }
+
+  /// Teilt das verschlüsselte Backup über Share-Dialog
+  Future<void> shareEncryptedBackup(String passphrase) async {
+    final file = await createEncryptedBackup(passphrase);
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'VibedTracker Backup (verschlüsselt)',
+      text: 'VibedTracker Daten-Backup (verschlüsselt)',
+    );
+  }
+
+  /// Stellt Daten aus einem verschlüsselten Backup wieder her
+  Future<BackupRestoreResult> restoreFromEncryptedFile(
+      File encFile, String passphrase) async {
+    try {
+      final envelope = jsonDecode(await encFile.readAsString()) as Map<String, dynamic>;
+
+      if (envelope['v'] != 1 || envelope['alg'] != 'AES-256-GCM') {
+        return BackupRestoreResult(
+            success: false, error: 'Unbekanntes Backup-Format');
+      }
+
+      final salt = base64Decode(envelope['salt'] as String);
+      final nonce = base64Decode(envelope['nonce'] as String);
+      final mac = base64Decode(envelope['mac'] as String);
+      final cipherText = base64Decode(envelope['data'] as String);
+      final iterations = (envelope['iter'] as int?) ?? 200000;
+
+      final pbkdf2 = Pbkdf2(
+        macAlgorithm: Hmac.sha256(),
+        iterations: iterations,
+        bits: 256,
+      );
+      final secretKey = await pbkdf2.deriveKey(
+        secretKey: SecretKey(utf8.encode(passphrase)),
+        nonce: salt,
+      );
+
+      final algorithm = AesGcm.with256bits();
+      final List<int> zipData;
+      try {
+        zipData = await algorithm.decrypt(
+          SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
+          secretKey: secretKey,
+        );
+      } on SecretBoxAuthenticationError {
+        return BackupRestoreResult(
+            success: false, error: 'Falsches Passwort oder beschädigtes Backup');
+      }
+
+      // Temporäre ZIP-Datei schreiben und restore aufrufen
+      final dir = await getApplicationDocumentsDirectory();
+      final tmpFile = File('${dir.path}/_restore_tmp.zip');
+      await tmpFile.writeAsBytes(zipData);
+      final result = await restoreFromFile(tmpFile);
+      await tmpFile.delete();
+      return result;
+    } catch (e) {
+      return BackupRestoreResult(success: false, error: e.toString());
+    }
   }
 
   /// Stellt Daten aus einem Backup wieder her
