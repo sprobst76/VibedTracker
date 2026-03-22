@@ -184,6 +184,7 @@ class ProjectsScreen extends ConsumerWidget {
 
   Future<void> _showAddProjectDialog(BuildContext context, WidgetRef ref) async {
     final nameController = TextEditingController();
+    final rateController = TextEditingController();
     String selectedColor = '#2196F3'; // Default blue
 
     final colors = [
@@ -245,6 +246,17 @@ class ProjectsScreen extends ConsumerWidget {
                     );
                   }).toList(),
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: rateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Stundensatz (optional)',
+                    hintText: '0,00',
+                    suffixText: '€/h',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
               ],
             ),
           ),
@@ -263,15 +275,20 @@ class ProjectsScreen extends ConsumerWidget {
     );
 
     if (result == true && nameController.text.trim().isNotEmpty) {
+      final rate = double.tryParse(rateController.text.replaceAll(',', '.')) ?? 0.0;
       await ref.read(projectsProvider.notifier).createProject(
         name: nameController.text.trim(),
         colorHex: selectedColor,
+        hourlyRate: rate,
       );
     }
   }
 
   Future<void> _showEditProjectDialog(BuildContext context, WidgetRef ref, Project project) async {
     final nameController = TextEditingController(text: project.name);
+    final rateController = TextEditingController(
+      text: project.hourlyRate > 0 ? project.hourlyRate.toStringAsFixed(2) : '',
+    );
     String selectedColor = project.colorHex ?? '#2196F3';
 
     final colors = [
@@ -331,6 +348,17 @@ class ProjectsScreen extends ConsumerWidget {
                     );
                   }).toList(),
                 ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: rateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Stundensatz (optional)',
+                    hintText: '0,00',
+                    suffixText: '€/h',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
               ],
             ),
           ),
@@ -349,10 +377,12 @@ class ProjectsScreen extends ConsumerWidget {
     );
 
     if (result == true && nameController.text.trim().isNotEmpty) {
+      final rate = double.tryParse(rateController.text.replaceAll(',', '.')) ?? 0.0;
       await ref.read(projectsProvider.notifier).updateProject(
         project,
         newName: nameController.text.trim(),
         newColorHex: selectedColor,
+        newHourlyRate: rate,
       );
     }
   }

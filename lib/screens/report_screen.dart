@@ -7,6 +7,8 @@ import '../models/settings.dart';
 import '../models/project.dart';
 import '../services/holiday_service.dart';
 import '../services/export_service.dart';
+import '../services/pdf_export_service.dart';
+import 'package:printing/printing.dart';
 
 // Re-export AbsenceType for convenience
 export '../models/vacation.dart' show AbsenceType;
@@ -25,6 +27,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
   int _selectedYear = DateTime.now().year;
   final HolidayService _holidayService = HolidayService();
   final ExportService _exportService = ExportService();
+  final PdfExportService _pdfExportService = PdfExportService();
   Map<DateTime, Holiday> _holidays = {};
   String? _loadedBundesland;
   bool _isExporting = false;
@@ -263,6 +266,49 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
     }
   }
 
+  Future<void> _exportMonthPdf(
+    List<WorkEntry> entries,
+    WeeklyHoursPeriodsNotifier periodsNotifier,
+  ) async {
+    setState(() => _isExporting = true);
+    try {
+      final projects  = ref.read(projectsProvider);
+      final vacations = ref.read(vacationProvider);
+      final settings  = ref.read(settingsProvider);
+      final monthData = _calculateMonthData(entries, vacations, periodsNotifier, settings);
+
+      final monthEntries = entries.where((e) {
+        return e.start.year == _selectedMonth.year &&
+            e.start.month == _selectedMonth.month;
+      }).toList();
+
+      final bytes = await _pdfExportService.generateMonthlyTimesheet(
+        entries: monthEntries,
+        month: _selectedMonth,
+        settings: settings,
+        projects: projects,
+        targetHours: monthData.targetHours,
+      );
+
+      const names = [
+        '', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+      ];
+      final filename =
+          'Arbeitszeitnachweis_${names[_selectedMonth.month]}_${_selectedMonth.year}.pdf';
+
+      await Printing.sharePdf(bytes: bytes, filename: filename);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF-Export fehlgeschlagen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final workEntries = ref.watch(workListProvider);
@@ -291,20 +337,52 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
             builder: (context, _) {
               final tab = _tabController.index;
               if (tab != 0 && tab != 1) return const SizedBox.shrink();
-              return IconButton(
-                icon: _isExporting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.file_download),
-                tooltip: 'Als Excel exportieren',
-                onPressed: _isExporting
-                    ? null
-                    : tab == 0
-                        ? () => _exportWeek(workEntries)
-                        : () => _exportMonth(workEntries, settings.weeklyHours, periodsNotifier),
+              if (_isExporting) {
+                return const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              // Woche: nur Excel
+              if (tab == 0) {
+                return IconButton(
+                  icon: const Icon(Icons.file_download),
+                  tooltip: 'Als Excel exportieren',
+                  onPressed: () => _exportWeek(workEntries),
+                );
+              }
+              // Monat: Excel + PDF
+              return PopupMenuButton<String>(
+                icon: const Icon(Icons.file_download),
+                tooltip: 'Exportieren',
+                onSelected: (choice) {
+                  if (choice == 'excel') {
+                    _exportMonth(workEntries, settings.weeklyHours, periodsNotifier);
+                  } else {
+                    _exportMonthPdf(workEntries, periodsNotifier);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'excel',
+                    child: Row(children: [
+                      Icon(Icons.table_chart_outlined, size: 18),
+                      SizedBox(width: 10),
+                      Text('Als Excel exportieren'),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'pdf',
+                    child: Row(children: [
+                      Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      SizedBox(width: 10),
+                      Text('Als PDF exportieren'),
+                    ]),
+                  ),
+                ],
               );
             },
           ),
@@ -1261,6 +1339,16 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
 
     final totalHours = sorted.fold(0.0, (s, e) => s + e.value);
 
+    // Gesamter Rechnungsbetrag für Projekte mit Stundensatz
+    double totalBilling = 0.0;
+    for (final e in sorted) {
+      if (e.key == null) continue;
+      final proj = projects.where((p) => p.id == e.key).firstOrNull;
+      if (proj != null && proj.hourlyRate > 0) {
+        totalBilling += e.value * proj.hourlyRate;
+      }
+    }
+
     if (entries.isEmpty) {
       return const Center(
         child: Text('Noch keine abgeschlossenen Einträge.',
@@ -1281,6 +1369,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
                 _buildMiniStat('Gesamt', _formatHours(totalHours), Colors.blue.shade700),
                 _buildMiniStat('Einträge', '${entries.length}', Colors.grey.shade700),
                 _buildMiniStat('Projekte', '${hoursById.keys.where((k) => k != null).length}', Colors.grey.shade700),
+                if (totalBilling > 0)
+                  _buildMiniStat('Abrechenbar', '${totalBilling.toStringAsFixed(2)} €', Colors.green.shade700),
               ],
             ),
           ),
@@ -1311,6 +1401,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
 
           final name = project?.name ?? (id == null ? 'Kein Projekt' : 'Gelöscht ($id)');
           final color = project?.color ?? Colors.grey;
+          final rate = project?.hourlyRate ?? 0.0;
+          final billing = rate > 0 ? hours * rate : 0.0;
 
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
@@ -1350,6 +1442,23 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
                       minHeight: 6,
                     ),
                   ),
+                  if (billing > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.euro, size: 13, color: Colors.green.shade700),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${hours.toStringAsFixed(2)} h × ${rate.toStringAsFixed(2)} €/h = ${billing.toStringAsFixed(2)} €',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

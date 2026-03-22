@@ -20,12 +20,16 @@ class Project extends HiveObject {
   @HiveField(4)
   int sortOrder;
 
+  @HiveField(5)
+  double hourlyRate; // Stundensatz in €, 0 = kein Stundensatz
+
   Project({
     required this.id,
     required this.name,
     this.colorHex,
     this.isActive = true,
     this.sortOrder = 0,
+    this.hourlyRate = 0.0,
   });
 
   Color get color {

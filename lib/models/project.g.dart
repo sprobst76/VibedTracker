@@ -22,13 +22,14 @@ class ProjectAdapter extends TypeAdapter<Project> {
       colorHex: fields[2] as String?,
       isActive: fields[3] as bool,
       sortOrder: fields[4] as int,
+      hourlyRate: fields[5] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, Project obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class ProjectAdapter extends TypeAdapter<Project> {
       ..writeByte(3)
       ..write(obj.isActive)
       ..writeByte(4)
-      ..write(obj.sortOrder);
+      ..write(obj.sortOrder)
+      ..writeByte(5)
+      ..write(obj.hourlyRate);
   }
 
   @override

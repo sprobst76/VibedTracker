@@ -682,6 +682,7 @@ class ProjectsNotifier extends StateNotifier<List<Project>> {
   Future<void> createProject({
     required String name,
     String? colorHex,
+    double hourlyRate = 0.0,
   }) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     final sortOrder = state.isEmpty ? 0 : state.map((p) => p.sortOrder).reduce((a, b) => a > b ? a : b) + 1;
@@ -690,6 +691,7 @@ class ProjectsNotifier extends StateNotifier<List<Project>> {
       name: name,
       colorHex: colorHex,
       sortOrder: sortOrder,
+      hourlyRate: hourlyRate,
     );
     await box.add(project);
     _refresh();
@@ -701,11 +703,13 @@ class ProjectsNotifier extends StateNotifier<List<Project>> {
     String? newColorHex,
     bool? newIsActive,
     int? newSortOrder,
+    double? newHourlyRate,
   }) async {
     if (newName != null) project.name = newName;
     if (newColorHex != null) project.colorHex = newColorHex;
     if (newIsActive != null) project.isActive = newIsActive;
     if (newSortOrder != null) project.sortOrder = newSortOrder;
+    if (newHourlyRate != null) project.hourlyRate = newHourlyRate;
     await project.save();
     _refresh();
   }
