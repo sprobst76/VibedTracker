@@ -534,6 +534,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
           ),
         ),
         const Divider(height: 1),
+        _buildLockBanner(settings),
+        const Divider(height: 1),
         // Month Summary
         Expanded(
           child: SingleChildScrollView(
@@ -549,6 +551,95 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
         ),
       ],
     );
+  }
+
+  Widget _buildLockBanner(Settings settings) {
+    final isLocked = settings.isMonthLocked(_selectedMonth);
+    if (isLocked) {
+      return Container(
+        color: Colors.orange.shade50,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.lock, size: 16, color: Colors.orange.shade800),
+            const SizedBox(width: 8),
+            Text(
+              'Monat abgeschlossen',
+              style: TextStyle(
+                  color: Colors.orange.shade800, fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              icon: const Icon(Icons.lock_open, size: 16),
+              label: const Text('Entsperren'),
+              onPressed: () => _unlockMonth(),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.lock_outline, size: 16),
+        label: const Text('Monat abschließen'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 40),
+        ),
+        onPressed: () => _lockMonth(),
+      ),
+    );
+  }
+
+  Future<void> _lockMonth() async {
+    final name = '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Monat abschließen?'),
+        content: Text(
+          'Einträge in $name können danach nicht mehr '
+          'bearbeitet oder gelöscht werden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Abschließen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      ref.read(settingsProvider.notifier).lockMonth(_selectedMonth);
+    }
+  }
+
+  Future<void> _unlockMonth() async {
+    final name = '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Monat entsperren?'),
+        content: Text('$name wird wieder bearbeitbar.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Entsperren'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      ref.read(settingsProvider.notifier).unlockMonth(_selectedMonth);
+    }
   }
 
   Widget _buildOvertimeDashboard(MonthData monthData) {
@@ -1200,6 +1291,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
         _buildWorkModeBreakdown(entries, totalHours),
         const SizedBox(height: 12),
 
+        // ── Tags-Auswertung ───────────────────────────────────────────────
+        _buildTagsBreakdown(entries, totalHours),
+        const SizedBox(height: 12),
+
         // Pro-Projekt-Karten
         ...sorted.map((entry) {
           final id = entry.key;
@@ -1333,6 +1428,98 @@ class _ReportScreenState extends ConsumerState<ReportScreen> with SingleTickerPr
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: pct,
+                        backgroundColor: color.withAlpha(30),
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Stunden pro Tag aggregiert und als Balken-Karte dargestellt.
+  Widget _buildTagsBreakdown(List<WorkEntry> entries, double totalHours) {
+    // Stunden pro Tag über alle Entries mit diesem Tag
+    final Map<String, double> hoursByTag = {};
+    for (final e in entries) {
+      if (e.tags.isEmpty) continue;
+      final net = _netMinutes(e) / 60.0;
+      // Gleiche Stunden zu jedem Tag des Entries addieren (Multi-Tag-Entries)
+      for (final tag in e.tags) {
+        hoursByTag[tag] = (hoursByTag[tag] ?? 0) + net;
+      }
+    }
+
+    if (hoursByTag.isEmpty) return const SizedBox.shrink();
+
+    final sorted = hoursByTag.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Normalisierung gegen den größten Tag-Wert (nicht totalHours, da Multi-Tags)
+    final maxHours = sorted.first.value;
+
+    const tagColors = [
+      Colors.indigo, Colors.teal, Colors.deepOrange,
+      Colors.purple, Colors.cyan, Colors.amber,
+    ];
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Tags',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+            ...sorted.asMap().entries.map((indexedEntry) {
+              final idx = indexedEntry.key;
+              final tag = indexedEntry.value.key;
+              final hours = indexedEntry.value.value;
+              final pct = totalHours > 0 ? hours / totalHours : 0.0;
+              final barPct = maxHours > 0 ? hours / maxHours : 0.0;
+              final color = tagColors[idx % tagColors.length];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.label_outline, size: 16, color: Colors.grey),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(tag, style: const TextStyle(fontSize: 13)),
+                        ),
+                        Text(
+                          _formatHours(hours),
+                          style: TextStyle(fontWeight: FontWeight.w600, color: color),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 44,
+                          child: Text(
+                            '${(pct * 100).toStringAsFixed(1)}%',
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: barPct,
                         backgroundColor: color.withAlpha(30),
                         valueColor: AlwaysStoppedAnimation<Color>(color),
                         minHeight: 5,

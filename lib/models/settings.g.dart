@@ -48,13 +48,14 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       workPcHost: fields[28] as String,
       workPcPort: fields[29] as int,
       workPcCheckIntervalMinutes: fields[30] as int,
+      lockedMonths: (fields[31] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(31)
+      ..writeByte(32)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -116,7 +117,9 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(29)
       ..write(obj.workPcPort)
       ..writeByte(30)
-      ..write(obj.workPcCheckIntervalMinutes);
+      ..write(obj.workPcCheckIntervalMinutes)
+      ..writeByte(31)
+      ..write(obj.lockedMonths);
   }
 
   @override

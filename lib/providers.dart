@@ -199,6 +199,22 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..workPcCheckIntervalMinutes = minutes.clamp(1, 60);
     state.save();
   }
+
+  void lockMonth(DateTime month) {
+    final key = Settings.monthKey(month);
+    if (!state.lockedMonths.contains(key)) {
+      state.lockedMonths = [...state.lockedMonths, key];
+      state.save();
+      state = box.get('prefs')!;
+    }
+  }
+
+  void unlockMonth(DateTime month) {
+    final key = Settings.monthKey(month);
+    state.lockedMonths = state.lockedMonths.where((k) => k != key).toList();
+    state.save();
+    state = box.get('prefs')!;
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

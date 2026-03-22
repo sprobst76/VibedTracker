@@ -206,11 +206,14 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
     final projects = projectBox.values.where((p) => p.isActive).toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
+    final settings = ref.watch(settingsProvider);
+    final isLocked = !isNewEntry && settings.isMonthLocked(_startDate);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(isNewEntry ? 'Neuer Eintrag' : 'Eintrag bearbeiten'),
         actions: [
-          if (!isNewEntry)
+          if (!isNewEntry && !isLocked)
             IconButton(
               icon: const Icon(Icons.delete),
               onPressed: _delete,
@@ -227,6 +230,31 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
           bottom: 16 + MediaQuery.of(context).padding.bottom + 24,
         ),
         children: [
+          // Lock banner
+          if (isLocked)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                border: Border.all(color: Colors.orange.shade200),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock, size: 16, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Monat abgeschlossen — nur Ansicht',
+                      style: TextStyle(
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Start Section
           _buildTimeSection(true),
           const SizedBox(height: 16),
@@ -266,7 +294,7 @@ class _EntryEditScreenState extends ConsumerState<EntryEditScreen> {
 
           // Save Button - prominent und gut sichtbar
           FilledButton.icon(
-            onPressed: _save,
+            onPressed: isLocked ? null : _save,
             icon: const Icon(Icons.save),
             label: Text(isNewEntry ? 'Eintrag erstellen' : 'Speichern'),
             style: FilledButton.styleFrom(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/work_entry.dart';
 import '../models/project.dart';
+import '../models/settings.dart';
 import '../providers.dart';
 import 'entry_edit_screen.dart';
 
@@ -57,20 +58,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     });
   }
 
-  Future<void> _deleteSelected(List<WorkEntry> allEntries) async {
-    final toDelete =
+  Future<void> _deleteSelected(List<WorkEntry> allEntries, Settings settings) async {
+    final selected =
         allEntries.where((e) => _selectedKeys.contains(e.key)).toList();
-    final count = toDelete.length;
+    final toDelete = selected.where((e) => !settings.isMonthLocked(e.start)).toList();
+    final skipped  = selected.length - toDelete.length;
     _cancelSelection();
     for (final e in toDelete) {
       await ref.read(workEntryProvider.notifier).deleteEntry(e);
     }
     if (mounted) {
+      final msg = skipped > 0
+          ? '${toDelete.length} gelöscht, $skipped gesperrt übersprungen'
+          : '${toDelete.length} Eintrag${toDelete.length == 1 ? '' : 'e'} gelöscht';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$count Eintrag${count == 1 ? '' : 'e'} gelöscht'),
-          duration: const Duration(seconds: 3),
-        ),
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
       );
     }
   }
@@ -160,12 +162,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget build(BuildContext context) {
     final allEntries = ref.watch(workEntryProvider);
     final projects   = ref.watch(projectsProvider);
+    final settings   = ref.watch(settingsProvider);
     final filtered   = _applyFilters(allEntries, projects);
     final groups     = _groupByDate(filtered);
     final totalHours = _sumHours(filtered);
 
     return Scaffold(
-      appBar: _buildAppBar(allEntries),
+      appBar: _buildAppBar(allEntries, settings),
       body: SafeArea(
         top: false,
         child: Column(
@@ -184,12 +187,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         var remaining = i;
                         for (final group in groups) {
                           if (remaining == 0) {
-                            return _buildDateHeader(group.label);
+                            final isLocked = group.entries.isNotEmpty &&
+                                settings.isMonthLocked(group.entries.first.start);
+                            return _buildDateHeader(group.label, isLocked: isLocked);
                           }
                           remaining--;
                           if (remaining < group.entries.length) {
                             return _buildEntryTile(
-                                group.entries[remaining], projects);
+                                group.entries[remaining], projects, settings);
                           }
                           remaining -= group.entries.length;
                         }
@@ -205,7 +210,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   // ── AppBar ─────────────────────────────────────────────────────────────────
 
-  AppBar _buildAppBar(List<WorkEntry> allEntries) {
+  AppBar _buildAppBar(List<WorkEntry> allEntries, Settings settings) {
     if (_isSelecting) {
       return AppBar(
         leading: IconButton(
@@ -218,7 +223,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Auswahl löschen',
             onPressed: _selectedKeys.isNotEmpty
-                ? () => _deleteSelected(allEntries)
+                ? () => _deleteSelected(allEntries, settings)
                 : null,
           ),
         ],
@@ -332,33 +337,48 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   // ── Datum-Header ───────────────────────────────────────────────────────────
 
-  Widget _buildDateHeader(String label) {
+  Widget _buildDateHeader(String label, {bool isLocked = false}) {
     return Container(
       color: Theme.of(context)
           .colorScheme
           .surfaceContainerHighest
           .withAlpha(180),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey.shade700,
-          letterSpacing: 0.3,
-        ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+              letterSpacing: 0.3,
+            ),
+          ),
+          if (isLocked) ...[
+            const Spacer(),
+            Icon(Icons.lock, size: 12, color: Colors.orange.shade700),
+            const SizedBox(width: 4),
+            Text(
+              'Abgeschlossen',
+              style: TextStyle(
+                  fontSize: 11, color: Colors.orange.shade700),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   // ── Eintrags-Kachel ────────────────────────────────────────────────────────
 
-  Widget _buildEntryTile(WorkEntry entry, List<Project> projects) {
+  Widget _buildEntryTile(WorkEntry entry, List<Project> projects, Settings settings) {
     final Project? project = entry.projectId != null
         ? projects.where((p) => p.id == entry.projectId).firstOrNull
         : null;
 
     final isRunning = entry.stop == null;
+    final isLocked  = settings.isMonthLocked(entry.start);
     final isSelected = _selectedKeys.contains(entry.key);
     final netH  = _netHours(entry);
     final start = _fmtTime(entry.start);
@@ -366,10 +386,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final mode  = entry.workMode;
 
     Widget tile = InkWell(
-      onTap: () => _openEdit(entry),
-      onLongPress: () {
-        if (!_isSelecting) _enterSelection(entry);
-      },
+      onTap: isLocked
+          ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Monat abgeschlossen — Bearbeitung gesperrt'),
+                duration: Duration(seconds: 2),
+              ))
+          : () => _openEdit(entry),
+      onLongPress: isLocked
+          ? null
+          : () {
+              if (!_isSelecting) _enterSelection(entry);
+            },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
@@ -519,8 +546,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
     );
 
-    // Swipe-to-Delete (nur außerhalb Selektionsmodus, nur abgeschlossene Einträge)
-    if (!_isSelecting && !isRunning) {
+    // Swipe-to-Delete (nur außerhalb Selektionsmodus, nur abgeschlossene + entsperrte Einträge)
+    if (!_isSelecting && !isRunning && !isLocked) {
       tile = Dismissible(
         key: ValueKey(entry.key),
         direction: DismissDirection.endToStart,

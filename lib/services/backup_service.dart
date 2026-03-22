@@ -327,6 +327,7 @@ class BackupService {
     'workPcHost': s.workPcHost,
     'workPcPort': s.workPcPort,
     'workPcCheckIntervalMinutes': s.workPcCheckIntervalMinutes,
+    'lockedMonths': s.lockedMonths,
   };
 
   Settings _settingsFromJson(Map<String, dynamic> json) => Settings(
@@ -353,6 +354,7 @@ class BackupService {
     workPcHost: json['workPcHost'] ?? '',
     workPcPort: json['workPcPort'] ?? 445,
     workPcCheckIntervalMinutes: json['workPcCheckIntervalMinutes'] ?? 5,
+    lockedMonths: (json['lockedMonths'] as List?)?.cast<String>() ?? [],
   );
 
   void _mergeSettings(Settings existing, Settings imported) {
@@ -372,6 +374,7 @@ class BackupService {
     existing.workPcHost = imported.workPcHost;
     existing.workPcPort = imported.workPcPort;
     existing.workPcCheckIntervalMinutes = imported.workPcCheckIntervalMinutes;
+    existing.lockedMonths = imported.lockedMonths;
   }
 
   // Project

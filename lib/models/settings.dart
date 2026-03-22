@@ -73,6 +73,8 @@ class Settings extends HiveObject {
   int workPcPort; // TCP-Port für Probe (Standard: 445 = SMB/Windows)
   @HiveField(30)
   int workPcCheckIntervalMinutes; // Prüfintervall in Minuten (Standard: 5)
+  @HiveField(31)
+  List<String> lockedMonths; // Format: "YYYY-MM" — gesperrte Monate
 
   Settings({
     this.weeklyHours = 40.0,
@@ -106,13 +108,22 @@ class Settings extends HiveObject {
     this.workPcHost = '',                  // Default: leer
     this.workPcPort = 445,                 // Default: SMB/Windows
     this.workPcCheckIntervalMinutes = 5,   // Default: 5 Minuten
-  }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
+    List<String>? lockedMonths,
+  })  : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7],
+        lockedMonths = lockedMonths ?? [];
 
   /// Gibt den aktuellen Theme-Modus zurück
   AppThemeMode get themeMode => AppThemeMode.values[themeModeIndex.clamp(0, 2)];
 
   /// Setzt den Theme-Modus
   set themeMode(AppThemeMode mode) => themeModeIndex = mode.index;
+
+  /// Schlüssel-Format für gesperrte Monate: "YYYY-MM"
+  static String monthKey(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}';
+
+  /// Prüft ob der Monat eines Datums gesperrt ist
+  bool isMonthLocked(DateTime date) => lockedMonths.contains(monthKey(date));
 
   /// Prüft ob ein Wochentag ein Standard-Arbeitstag ist
   bool isWorkingWeekday(int weekday) => !nonWorkingWeekdays.contains(weekday);
