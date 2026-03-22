@@ -65,6 +65,14 @@ class Settings extends HiveObject {
   bool enableAutoPause; // Automatische Pausenerkennung bei Inaktivität
   @HiveField(26)
   int autoPauseThresholdMinutes; // Inaktivitätsschwelle in Minuten (Standard: 15)
+  @HiveField(27)
+  bool enablePcPresence; // Arbeits-PC Präsenzerkennung
+  @HiveField(28)
+  String workPcHost; // Hostname oder IP des Arbeits-PCs (z.B. "MYPC.local")
+  @HiveField(29)
+  int workPcPort; // TCP-Port für Probe (Standard: 445 = SMB/Windows)
+  @HiveField(30)
+  int workPcCheckIntervalMinutes; // Prüfintervall in Minuten (Standard: 5)
 
   Settings({
     this.weeklyHours = 40.0,
@@ -94,6 +102,10 @@ class Settings extends HiveObject {
     this.overtimeWarnLowHours = -8,        // Default: -8h Warnung
     this.enableAutoPause = true,           // Default: aktiviert
     this.autoPauseThresholdMinutes = 15,   // Default: 15 Minuten
+    this.enablePcPresence = false,         // Default: deaktiviert
+    this.workPcHost = '',                  // Default: leer
+    this.workPcPort = 445,                 // Default: SMB/Windows
+    this.workPcCheckIntervalMinutes = 5,   // Default: 5 Minuten
   }) : nonWorkingWeekdays = nonWorkingWeekdays ?? [6, 7]; // Default: Sa, So
 
   /// Gibt den aktuellen Theme-Modus zurück

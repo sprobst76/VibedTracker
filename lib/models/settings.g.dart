@@ -44,13 +44,17 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       overtimeWarnLowHours: fields[24] as int,
       enableAutoPause: fields[25] as bool,
       autoPauseThresholdMinutes: fields[26] as int,
+      enablePcPresence: fields[27] as bool,
+      workPcHost: fields[28] as String,
+      workPcPort: fields[29] as int,
+      workPcCheckIntervalMinutes: fields[30] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, Settings obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(31)
       ..writeByte(0)
       ..write(obj.weeklyHours)
       ..writeByte(1)
@@ -104,7 +108,15 @@ class SettingsAdapter extends TypeAdapter<Settings> {
       ..writeByte(25)
       ..write(obj.enableAutoPause)
       ..writeByte(26)
-      ..write(obj.autoPauseThresholdMinutes);
+      ..write(obj.autoPauseThresholdMinutes)
+      ..writeByte(27)
+      ..write(obj.enablePcPresence)
+      ..writeByte(28)
+      ..write(obj.workPcHost)
+      ..writeByte(29)
+      ..write(obj.workPcPort)
+      ..writeByte(30)
+      ..write(obj.workPcCheckIntervalMinutes);
   }
 
   @override

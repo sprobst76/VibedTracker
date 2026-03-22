@@ -35,6 +35,7 @@ import '../services/location_tracking_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/overtime_alert_service.dart';
 import '../services/wifi_zone_service.dart';
+import '../services/device_presence_service.dart';
 import 'calendar_overview_screen.dart';
 import '../widgets/responsive_shell.dart';
 
@@ -71,6 +72,10 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   // WiFi-Zone-Erkennung
   final _wifiZoneService = WifiZoneService();
 
+  // PC-Präsenzerkennung
+  final _pcPresenceService = DevicePresenceService();
+  bool _sessionWasRunning = false; // für Start/Stop-Erkennung im build()
+
   @override
   void initState() {
     super.initState();
@@ -96,6 +101,7 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     _refreshTimer?.cancel();
     _serviceHealthTimer?.cancel();
     _wifiZoneService.dispose();
+    _pcPresenceService.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -222,6 +228,74 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
       );
     } catch (e) {
       debugPrint('OvertimeAlertService check error: $e');
+    }
+  }
+
+  /// Startet oder stoppt den PC-Präsenz-Watcher abhängig vom Session-Status.
+  void _updatePcWatcher({required bool sessionRunning}) {
+    final settings = ref.read(settingsProvider);
+    if (!settings.enablePcPresence || settings.workPcHost.isEmpty) {
+      _pcPresenceService.stopWatching();
+      return;
+    }
+
+    if (sessionRunning && !_pcPresenceService.isWatching) {
+      _pcPresenceService.onStateChange = _onPcStateChange;
+      _pcPresenceService.startWatching(
+        host: settings.workPcHost,
+        port: settings.workPcPort,
+        interval: Duration(minutes: settings.workPcCheckIntervalMinutes),
+      );
+    } else if (!sessionRunning) {
+      _pcPresenceService.stopWatching();
+    }
+  }
+
+  void _onPcStateChange(PresenceResult result) {
+    if (!mounted) return;
+    if (!result.isOnline) {
+      // PC weg → Pause anbieten wenn Session läuft
+      final running = Hive.box<WorkEntry>('work')
+          .values
+          .where((e) => e.stop == null)
+          .lastOrNull;
+      if (running == null) return;
+      final activePause =
+          running.pauses.where((p) => p.end == null).firstOrNull;
+      if (activePause != null) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '💤 ${result.host} nicht erreichbar — PC schläft oder aus.'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Pause starten',
+            onPressed: () => _startPause(running),
+          ),
+        ),
+      );
+    } else {
+      // PC wieder da → wenn pausiert, Fortsetzung anbieten
+      final running = Hive.box<WorkEntry>('work')
+          .values
+          .where((e) => e.stop == null)
+          .lastOrNull;
+      if (running == null) return;
+      final activePause =
+          running.pauses.where((p) => p.end == null).firstOrNull;
+      if (activePause == null) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🖥 ${result.host} wieder aktiv.'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Pause beenden',
+            onPressed: () => _endPause(running, activePause),
+          ),
+        ),
+      );
     }
   }
 
@@ -752,6 +826,27 @@ class _HomeState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
     // WiFi-Zonen reaktiv nachführen
     ref.listen(geofenceZonesProvider, (_, zones) {
       _wifiZoneService.updateZones(zones);
+    });
+
+    // PC-Watcher mit Session-Status synchronisieren
+    ref.listen(workListProvider, (_, entries) {
+      final nowRunning = entries.any((e) => e.stop == null);
+      if (nowRunning != _sessionWasRunning) {
+        _sessionWasRunning = nowRunning;
+        _updatePcWatcher(sessionRunning: nowRunning);
+      }
+    });
+
+    // Settings-Änderungen für PC-Watcher berücksichtigen
+    ref.listen(settingsProvider, (prev, next) {
+      if (prev?.enablePcPresence != next.enablePcPresence ||
+          prev?.workPcHost != next.workPcHost ||
+          prev?.workPcPort != next.workPcPort ||
+          prev?.workPcCheckIntervalMinutes != next.workPcCheckIntervalMinutes) {
+        final running = ref.read(workListProvider).any((e) => e.stop == null);
+        _pcPresenceService.stopWatching();
+        _updatePcWatcher(sessionRunning: running);
+      }
     });
 
     final entries = ref.watch(workListProvider);

@@ -179,6 +179,26 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state..autoPauseThresholdMinutes = minutes.clamp(5, 120);
     state.save();
   }
+
+  void updatePcPresenceEnabled(bool enabled) {
+    state = state..enablePcPresence = enabled;
+    state.save();
+  }
+
+  void updateWorkPcHost(String host) {
+    state = state..workPcHost = host.trim();
+    state.save();
+  }
+
+  void updateWorkPcPort(int port) {
+    state = state..workPcPort = port.clamp(1, 65535);
+    state.save();
+  }
+
+  void updateWorkPcCheckInterval(int minutes) {
+    state = state..workPcCheckIntervalMinutes = minutes.clamp(1, 60);
+    state.save();
+  }
 }
 
 // WorkEntry- und Vacation-Listen (legacy, wird durch workEntryProvider ersetzt)

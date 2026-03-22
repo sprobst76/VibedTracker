@@ -6,6 +6,7 @@ import '../models/settings.dart';
 import '../services/test_data_service.dart';
 import '../services/reminder_service.dart';
 import '../services/backup_service.dart';
+import '../services/device_presence_service.dart';
 import 'weekly_hours_screen.dart';
 import 'geofence_setup_screen.dart';
 import 'geofence_debug_screen.dart';
@@ -70,6 +71,10 @@ class SettingsScreen extends ConsumerWidget {
 
           // Auto-Pause Section
           _buildAutoPauseSection(context, settings, notifier),
+          const SizedBox(height: 16),
+
+          // PC-Präsenzerkennung Section
+          _buildPcPresenceSection(context, settings, notifier),
           const SizedBox(height: 16),
 
           // Überstunden-Warnungen Section
@@ -1140,6 +1145,132 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildPcPresenceSection(
+      BuildContext context, Settings settings, SettingsNotifier notifier) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.computer, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Arbeits-PC Erkennung',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Erkennt ob dein PC im Netz aktiv ist — startet/stoppt Pause automatisch.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('PC-Erkennung aktiviert'),
+              value: settings.enablePcPresence,
+              onChanged: notifier.updatePcPresenceEnabled,
+            ),
+            if (settings.enablePcPresence) ...[
+              // Hostname
+              _PcHostField(settings: settings, notifier: notifier),
+              const SizedBox(height: 12),
+
+              // Port-Presets
+              const Text('Port',
+                  style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ...DevicePresenceService.portPresets.map((p) => ChoiceChip(
+                        label: Text('${p.label} :${p.port}',
+                            style: const TextStyle(fontSize: 12)),
+                        selected: settings.workPcPort == p.port,
+                        onSelected: (_) => notifier.updateWorkPcPort(p.port),
+                      )),
+                  ChoiceChip(
+                    label: Text(
+                        DevicePresenceService.portPresets
+                                .any((p) => p.port == settings.workPcPort)
+                            ? 'Custom'
+                            : 'Custom :${settings.workPcPort}',
+                        style: const TextStyle(fontSize: 12)),
+                    selected: !DevicePresenceService.portPresets
+                        .any((p) => p.port == settings.workPcPort),
+                    onSelected: (_) => _showCustomPortDialog(
+                        context, settings.workPcPort, notifier),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Prüfintervall
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Prüfintervall'),
+                subtitle:
+                    Text('alle ${settings.workPcCheckIntervalMinutes} Minuten'),
+                trailing: SegmentedButton<int>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('1m')),
+                    ButtonSegment(value: 5, label: Text('5m')),
+                    ButtonSegment(value: 10, label: Text('10m')),
+                  ],
+                  selected: {settings.workPcCheckIntervalMinutes.clamp(1, 10)
+                      .let((v) => [1, 5, 10].contains(v) ? v : 5)},
+                  onSelectionChanged: (s) =>
+                      notifier.updateWorkPcCheckInterval(s.first),
+                ),
+              ),
+              const Divider(height: 16),
+
+              // Test-Button
+              _PcPresenceTestTile(settings: settings),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCustomPortDialog(
+      BuildContext context, int current, SettingsNotifier notifier) async {
+    final controller = TextEditingController(text: current.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Custom Port'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Port (1–65535)',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () {
+              final v = int.tryParse(controller.text);
+              if (v != null && v >= 1 && v <= 65535) Navigator.pop(ctx, v);
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (result != null) notifier.updateWorkPcPort(result);
+  }
+
   Widget _buildOvertimeAlertsSection(
       BuildContext context, Settings settings, SettingsNotifier notifier) {
     return Card(
@@ -1719,6 +1850,145 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Extension ─────────────────────────────────────────────────────────────────
+
+extension _Let<T> on T {
+  R let<R>(R Function(T) block) => block(this);
+}
+
+// ── Hostname-Eingabefeld ──────────────────────────────────────────────────────
+
+class _PcHostField extends StatefulWidget {
+  final Settings settings;
+  final SettingsNotifier notifier;
+  const _PcHostField({required this.settings, required this.notifier});
+
+  @override
+  State<_PcHostField> createState() => _PcHostFieldState();
+}
+
+class _PcHostFieldState extends State<_PcHostField> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.settings.workPcHost);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      decoration: InputDecoration(
+        border: const OutlineInputBorder(),
+        labelText: 'Hostname oder IP',
+        hintText: 'z.B. MYPC.local oder 192.168.1.50',
+        prefixIcon: const Icon(Icons.computer),
+        helperText: 'Windows: Hostname aus Systemeigenschaften; '
+            'IP aus ipconfig',
+        suffixIcon: _ctrl.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () {
+                  _ctrl.clear();
+                  widget.notifier.updateWorkPcHost('');
+                },
+              )
+            : null,
+      ),
+      onChanged: widget.notifier.updateWorkPcHost,
+    );
+  }
+}
+
+// ── Test-Tile ─────────────────────────────────────────────────────────────────
+
+class _PcPresenceTestTile extends StatefulWidget {
+  final Settings settings;
+  const _PcPresenceTestTile({required this.settings});
+
+  @override
+  State<_PcPresenceTestTile> createState() => _PcPresenceTestTileState();
+}
+
+class _PcPresenceTestTileState extends State<_PcPresenceTestTile> {
+  bool _testing = false;
+  PresenceResult? _result;
+
+  Future<void> _test() async {
+    setState(() {
+      _testing = true;
+      _result = null;
+    });
+    final result = await DevicePresenceService.probe(
+      widget.settings.workPcHost,
+      widget.settings.workPcPort,
+      timeout: const Duration(seconds: 3),
+    );
+    if (mounted) {
+      setState(() {
+        _testing = false;
+        _result = result;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = _result;
+    return Row(
+      children: [
+        Expanded(
+          child: r == null
+              ? Text(
+                  'Verbindung zu ${widget.settings.workPcHost}:${widget.settings.workPcPort} testen',
+                  style: const TextStyle(fontSize: 13),
+                )
+              : Row(
+                  children: [
+                    Icon(
+                      r.isOnline ? Icons.check_circle : Icons.cancel,
+                      color: r.isOnline ? Colors.green : Colors.red,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        r.isOnline
+                            ? 'Erreichbar (${r.latency?.inMilliseconds ?? 0}ms)'
+                            : 'Nicht erreichbar',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: r.isOnline ? Colors.green.shade700 : Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        const SizedBox(width: 8),
+        _testing
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : FilledButton.tonal(
+                onPressed: widget.settings.workPcHost.isEmpty ? null : _test,
+                child: const Text('Testen'),
+              ),
+      ],
     );
   }
 }

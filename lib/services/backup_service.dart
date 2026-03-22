@@ -323,6 +323,10 @@ class BackupService {
     'overtimeWarnLowHours': s.overtimeWarnLowHours,
     'enableAutoPause': s.enableAutoPause,
     'autoPauseThresholdMinutes': s.autoPauseThresholdMinutes,
+    'enablePcPresence': s.enablePcPresence,
+    'workPcHost': s.workPcHost,
+    'workPcPort': s.workPcPort,
+    'workPcCheckIntervalMinutes': s.workPcCheckIntervalMinutes,
   };
 
   Settings _settingsFromJson(Map<String, dynamic> json) => Settings(
@@ -345,6 +349,10 @@ class BackupService {
     overtimeWarnLowHours: json['overtimeWarnLowHours'] ?? -8,
     enableAutoPause: json['enableAutoPause'] ?? true,
     autoPauseThresholdMinutes: json['autoPauseThresholdMinutes'] ?? 15,
+    enablePcPresence: json['enablePcPresence'] ?? false,
+    workPcHost: json['workPcHost'] ?? '',
+    workPcPort: json['workPcPort'] ?? 445,
+    workPcCheckIntervalMinutes: json['workPcCheckIntervalMinutes'] ?? 5,
   );
 
   void _mergeSettings(Settings existing, Settings imported) {
@@ -360,6 +368,10 @@ class BackupService {
     existing.overtimeWarnLowHours = imported.overtimeWarnLowHours;
     existing.enableAutoPause = imported.enableAutoPause;
     existing.autoPauseThresholdMinutes = imported.autoPauseThresholdMinutes;
+    existing.enablePcPresence = imported.enablePcPresence;
+    existing.workPcHost = imported.workPcHost;
+    existing.workPcPort = imported.workPcPort;
+    existing.workPcCheckIntervalMinutes = imported.workPcCheckIntervalMinutes;
   }
 
   // Project
