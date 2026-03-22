@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:network_info_plus/network_info_plus.dart';
+import '../services/wifi_zone_service.dart' show WifiInfo, WifiZoneService;
 import '../models/geofence_zone.dart';
 import '../models/work_entry.dart';
 import '../providers.dart';
@@ -154,7 +154,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
         ),
         subtitle: Text(
           '${workMode.label} · Radius: ${zone.radius.round()}m'
-          '${zone.wifiSSID != null && zone.wifiSSID!.isNotEmpty ? ' · 📶 ${zone.wifiSSID}' : ''}\n'
+          '${zone.wifiBSSID != null && zone.wifiBSSID!.isNotEmpty ? ' · 📡 Raum' : zone.wifiSSID != null && zone.wifiSSID!.isNotEmpty ? ' · 📶 ${zone.wifiSSID}' : ''}\n'
           '${zone.latitude.toStringAsFixed(5)}, ${zone.longitude.toStringAsFixed(5)}',
         ),
         isThreeLine: true,
@@ -231,12 +231,17 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
     double radius = zone?.radius ?? 150;
     bool isActive = zone?.isActive ?? true;
     int selectedWorkModeIndex = zone?.defaultWorkModeIndex ?? 0;
-    String wifiSSID = zone?.wifiSSID ?? '';
+    String wifiSSID  = zone?.wifiSSID  ?? '';
+    String wifiBSSID = zone?.wifiBSSID ?? '';
 
-    final nameController = TextEditingController(text: name);
-    final latController = TextEditingController(text: latitude.toString());
-    final lngController = TextEditingController(text: longitude.toString());
-    final wifiController = TextEditingController(text: wifiSSID);
+    final nameController  = TextEditingController(text: name);
+    final latController   = TextEditingController(text: latitude.toString());
+    final lngController   = TextEditingController(text: longitude.toString());
+    final wifiController  = TextEditingController(text: wifiSSID);
+    final bssidController = TextEditingController(text: wifiBSSID);
+
+    // Live-WiFi-Info (einmalig beim Dialog-Öffnen geladen)
+    WifiInfo? liveWifi;
 
     await showDialog(
       context: context,
@@ -396,46 +401,168 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // WiFi-SSID
-                const Text('WiFi-Netz (optional)',
+                // ── WiFi-Erkennung ─────────────────────────────────────
+                const Text('WiFi-Erkennung (optional)',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(
-                  'Verbindung/Trennung dieses Netzes löst automatisch Start/Stop aus.',
+                  'Verbinde diese Zone mit einem Netzwerk oder Zugangspunkt.',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
+                const SizedBox(height: 10),
+
+                // Live-Info-Card
+                if (liveWifi == null)
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.wifi_find, size: 18),
+                    label: const Text('Aktuelles Netz anzeigen'),
+                    onPressed: () async {
+                      final info = await WifiZoneService().currentWifiInfo();
+                      setDialogState(() => liveWifi = info);
+                    },
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: liveWifi!.isConnected
+                          ? Colors.blue.shade50
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: liveWifi!.isConnected
+                              ? Colors.blue.shade200
+                              : Colors.grey.shade300),
+                    ),
+                    child: liveWifi!.isConnected
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Icon(Icons.wifi,
+                                    size: 16, color: Colors.blue.shade700),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    liveWifi!.ssid ?? '(kein Name)',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.blue.shade900),
+                                  ),
+                                ),
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(0, 0),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap),
+                                  onPressed: () => setDialogState(() {
+                                    wifiSSID = liveWifi!.ssid ?? '';
+                                    wifiController.text = wifiSSID;
+                                  }),
+                                  child: const Text('Übernehmen',
+                                      style: TextStyle(fontSize: 12)),
+                                ),
+                              ]),
+                              if (liveWifi!.bssid != null) ...[
+                                const SizedBox(height: 4),
+                                Row(children: [
+                                  Icon(Icons.router,
+                                      size: 16, color: Colors.blue.shade600),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'AP: ${liveWifi!.bssid}',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue.shade700,
+                                          fontFamily: 'monospace'),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 0),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap),
+                                    onPressed: () => setDialogState(() {
+                                      wifiBSSID = liveWifi!.bssid ?? '';
+                                      bssidController.text = wifiBSSID;
+                                    }),
+                                    child: const Text('Übernehmen',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ]),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tipp: BSSID = dieser Raum/Zugangspunkt; '
+                                  'SSID = ganzes Netzwerk.',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.blue.shade600),
+                                ),
+                              ],
+                            ],
+                          )
+                        : Row(children: [
+                            Icon(Icons.wifi_off,
+                                size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            const Text('Nicht verbunden'),
+                          ]),
+                  ),
+                const SizedBox(height: 12),
+
+                // SSID-Feld
+                TextField(
+                  controller: wifiController,
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: 'Netzwerk (SSID)',
+                    hintText: 'z.B. Büro-WLAN',
+                    prefixIcon: const Icon(Icons.wifi),
+                    suffixIcon: wifiSSID.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setDialogState(() {
+                              wifiSSID = '';
+                              wifiController.clear();
+                            }),
+                          )
+                        : null,
+                  ),
+                  onChanged: (v) => setDialogState(() => wifiSSID = v.trim()),
+                ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: wifiController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          hintText: 'z.B. Büro-WLAN',
-                          prefixIcon: Icon(Icons.wifi),
-                        ),
-                        onChanged: (v) => wifiSSID = v.trim(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.outlined(
-                      icon: const Icon(Icons.my_location, size: 20),
-                      tooltip: 'Aktuelles Netz übernehmen',
-                      onPressed: () async {
-                        try {
-                          final raw = await NetworkInfo().getWifiName();
-                          if (raw != null && raw.isNotEmpty) {
-                            final ssid = raw.replaceAll('"', '').trim();
-                            setDialogState(() {
-                              wifiSSID = ssid;
-                              wifiController.text = ssid;
-                            });
-                          }
-                        } catch (_) {}
-                      },
-                    ),
-                  ],
+
+                // BSSID-Feld
+                TextField(
+                  controller: bssidController,
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: 'Zugangspunkt / Raum (BSSID)',
+                    hintText: 'AA:BB:CC:DD:EE:FF',
+                    prefixIcon: const Icon(Icons.router),
+                    helperText: wifiBSSID.isNotEmpty
+                        ? 'Raum-genaue Erkennung aktiv'
+                        : 'Raum-genaue Erkennung (präziser als SSID)',
+                    helperStyle: TextStyle(
+                        color: wifiBSSID.isNotEmpty
+                            ? Colors.green.shade700
+                            : null),
+                    suffixIcon: wifiBSSID.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setDialogState(() {
+                              wifiBSSID = '';
+                              bssidController.clear();
+                            }),
+                          )
+                        : null,
+                  ),
+                  onChanged: (v) =>
+                      setDialogState(() => wifiBSSID = v.trim().toUpperCase()),
                 ),
                 const SizedBox(height: 16),
 
@@ -466,7 +593,8 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                   ? null
                   : () async {
                       final notifier = ref.read(geofenceZonesProvider.notifier);
-                      final ssidValue = wifiSSID.isEmpty ? null : wifiSSID;
+                      final ssidValue  = wifiSSID.isEmpty  ? null : wifiSSID;
+                      final bssidValue = wifiBSSID.isEmpty ? null : wifiBSSID;
                       if (isEdit) {
                         await notifier.updateZone(
                           zone,
@@ -477,6 +605,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           newIsActive: isActive,
                           newDefaultWorkModeIndex: selectedWorkModeIndex,
                           newWifiSSID: ssidValue,
+                          newWifiBSSID: bssidValue,
                         );
                       } else {
                         await notifier.addZone(GeofenceZone(
@@ -488,6 +617,7 @@ class _GeofenceSetupScreenState extends ConsumerState<GeofenceSetupScreen> {
                           isActive: isActive,
                           defaultWorkModeIndex: selectedWorkModeIndex,
                           wifiSSID: ssidValue,
+                          wifiBSSID: bssidValue,
                         ));
                       }
                       if (context.mounted) Navigator.pop(context);

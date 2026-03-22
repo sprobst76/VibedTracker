@@ -31,6 +31,12 @@ class GeofenceZone extends HiveObject {
   @HiveField(7)
   String? wifiSSID;
 
+  /// Optionale BSSID (MAC-Adresse des Access Points) für Raum-genaue Erkennung.
+  /// Präziser als SSID: ein Bürogebäude hat eine SSID, aber viele BSSIDs.
+  /// Priorität: BSSID > SSID (spezifischer gewinnt).
+  @HiveField(8)
+  String? wifiBSSID;
+
   GeofenceZone({
     required this.id,
     required this.name,
@@ -40,6 +46,7 @@ class GeofenceZone extends HiveObject {
     this.isActive = true,
     this.defaultWorkModeIndex = 0,
     this.wifiSSID,
+    this.wifiBSSID,
   });
 
   /// Prüft ob ein Punkt innerhalb des Geofence liegt

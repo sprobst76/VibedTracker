@@ -5,75 +5,81 @@ import 'package:network_info_plus/network_info_plus.dart';
 import '../models/geofence_zone.dart';
 import 'geofence_event_queue.dart';
 
-/// Erkennt Zonenein- und -austritte anhand des verbundenen WiFi-Netzes.
+/// Aktuell verbundene WiFi-Informationen (für UI und Matching).
+class WifiInfo {
+  final String? ssid;
+  final String? bssid;
+
+  const WifiInfo({this.ssid, this.bssid});
+
+  bool get isConnected => ssid != null || bssid != null;
+
+  /// Kurzform der BSSID für Anzeige: nur die letzten 3 Bytes.
+  /// z.B. "AA:BB:CC:DD:EE:FF" → "DD:EE:FF"
+  String get bssidShort {
+    if (bssid == null) return '';
+    final parts = bssid!.split(':');
+    if (parts.length < 3) return bssid!;
+    return parts.sublist(parts.length - 3).join(':').toUpperCase();
+  }
+
+  @override
+  String toString() => 'WifiInfo(ssid: $ssid, bssid: $bssid)';
+}
+
+/// Erkennt Zonenein- und -austritte anhand von SSID und/oder BSSID.
 ///
-/// Funktioniert komplementär zum GPS-Geofencing:
-/// - Energie: near-zero (event-driven, kein aktives Scanning)
-/// - Zuverlässigkeit: sehr hoch für Innen-Bereiche (Büro, Homeoffice)
-/// - Latenz: sofort bei WiFi-Verbindungswechsel
+/// Matching-Priorität (spezifischer gewinnt):
+///   1. BSSID-Match → Raum-Ebene (~1 AP pro Raum/Zone)
+///   2. SSID-Match  → Gebäude-Ebene (ganzes Netzwerk)
 ///
-/// Jede GeofenceZone kann optional eine WiFi-SSID hinterlegt haben.
-/// Wird die SSID verbunden/getrennt, wird ein Enter/Exit-Event
-/// in die GeofenceEventQueue eingereiht (identisch zum GPS-Pfad).
+/// Energie: near-zero — event-driven via OS-Callback, kein aktives Scanning.
 class WifiZoneService {
   final NetworkInfo _networkInfo = NetworkInfo();
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   List<GeofenceZone> _zones = [];
-  String? _currentZoneId; // ID der Zone, die aktuell via WiFi aktiv ist
+  String? _currentZoneId;
 
-  /// Wird aufgerufen wenn ein Enter- oder Exit-Event eingereiht wurde.
-  /// HomeScreen nutzt das zum Anstoßen von _syncPendingEvents().
+  /// Callback wenn Enter/Exit eingereiht → HomeScreen triggert Sync.
   void Function()? onZoneEvent;
 
-  /// Wird aufgerufen beim Exit aus einer bekannten Zone (inkl. Disconnect-Zeitpunkt).
-  /// HomeScreen kann daraus einen Pause-Dialog ableiten.
+  /// Callback beim Verlassen einer bekannten Zone → Pause-Dialog.
   void Function(DateTime since)? onExitZone;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   Future<void> init(List<GeofenceZone> zones) async {
     _zones = zones;
-
-    // Initialer Check ohne Enter-Event (App-Start, nicht "neu verbunden")
-    await _checkCurrentSsid(isInit: true);
-
-    // Auf Connectivity-Änderungen lauschen
+    await _checkCurrentWifi(isInit: true);
     _connectivitySub = Connectivity()
         .onConnectivityChanged
-        .listen((_) => _checkCurrentSsid());
+        .listen((_) => _checkCurrentWifi());
   }
 
-  /// Zonen aktualisieren (aufrufen wenn sich die Zone-Liste ändert).
   void updateZones(List<GeofenceZone> zones) {
     _zones = zones;
-    _checkCurrentSsid();
+    _checkCurrentWifi();
   }
 
-  void dispose() {
-    _connectivitySub?.cancel();
-  }
+  void dispose() => _connectivitySub?.cancel();
 
   // ── Kern-Logik ─────────────────────────────────────────────────────────────
 
-  Future<void> _checkCurrentSsid({bool isInit = false}) async {
-    final ssid = await _getCurrentSsid();
-
-    // Zone suchen, deren SSID mit der aktuellen übereinstimmt
-    final GeofenceZone? matchingZone = _zones
-        .where((z) =>
-            z.isActive && (z.wifiSSID?.isNotEmpty ?? false) && z.wifiSSID == ssid)
-        .firstOrNull;
+  Future<void> _checkCurrentWifi({bool isInit = false}) async {
+    final info = await currentWifiInfo();
+    final matchingZone = _findMatchingZone(info);
 
     final newZoneId = matchingZone?.id;
-    if (newZoneId == _currentZoneId) return; // keine Änderung
+    if (newZoneId == _currentZoneId) return;
 
     final previousZoneId = _currentZoneId;
     _currentZoneId = newZoneId;
 
     if (newZoneId != null) {
-      // ── ENTER ──────────────────────────────────────────────────────────
-      log('WifiZoneService: ENTER zone "${matchingZone!.name}" (SSID: $ssid)',
+      final matchType = _matchType(matchingZone!, info);
+      log('WifiZoneService: ENTER "${matchingZone.name}" via $matchType '
+          '(ssid=${info.ssid}, bssid=${info.bssid})',
           name: 'WifiZoneService');
       await GeofenceEventQueue.enqueue(GeofenceEventData(
         zoneId: newZoneId,
@@ -82,8 +88,7 @@ class WifiZoneService {
       ));
       onZoneEvent?.call();
     } else if (previousZoneId != null && !isInit) {
-      // ── EXIT ───────────────────────────────────────────────────────────
-      log('WifiZoneService: EXIT zone $previousZoneId (now on: ${ssid ?? "offline"})',
+      log('WifiZoneService: EXIT $previousZoneId → ${info.ssid ?? "offline"}',
           name: 'WifiZoneService');
       await GeofenceEventQueue.enqueue(GeofenceEventData(
         zoneId: previousZoneId,
@@ -95,27 +100,62 @@ class WifiZoneService {
     }
   }
 
-  Future<String?> _getCurrentSsid() async {
+  /// Sucht die passende Zone — BSSID hat Vorrang vor SSID.
+  GeofenceZone? _findMatchingZone(WifiInfo info) {
+    final active = _zones.where((z) => z.isActive);
+
+    // 1. BSSID-Match (Raum-Ebene)
+    if (info.bssid != null) {
+      final match = active.where((z) =>
+          z.wifiBSSID != null &&
+          z.wifiBSSID!.isNotEmpty &&
+          z.wifiBSSID!.toUpperCase() == info.bssid!.toUpperCase()).firstOrNull;
+      if (match != null) return match;
+    }
+
+    // 2. SSID-Match (Netzwerk-Ebene)
+    if (info.ssid != null) {
+      return active.where((z) =>
+          z.wifiSSID != null &&
+          z.wifiSSID!.isNotEmpty &&
+          z.wifiSSID == info.ssid).firstOrNull;
+    }
+
+    return null;
+  }
+
+  String _matchType(GeofenceZone zone, WifiInfo info) {
+    if (info.bssid != null &&
+        zone.wifiBSSID?.toUpperCase() == info.bssid!.toUpperCase()) {
+      return 'BSSID (Raum)';
+    }
+    return 'SSID (Netzwerk)';
+  }
+
+  // ── Öffentliche Hilfs-API (für UI) ─────────────────────────────────────────
+
+  /// Gibt SSID und BSSID des aktuell verbundenen Netzes zurück.
+  /// Kann direkt im Zone-Dialog für "Übernehmen"-Buttons verwendet werden.
+  Future<WifiInfo> currentWifiInfo() async {
     try {
-      final raw = await _networkInfo.getWifiName();
-      if (raw == null || raw.isEmpty) return null;
-      // iOS liefert SSID mit Anführungszeichen: "MeinNetz"
-      return raw.replaceAll('"', '').trim();
+      final rawSsid  = await _networkInfo.getWifiName();
+      final rawBssid = await _networkInfo.getWifiBSSID();
+
+      final ssid = rawSsid != null && rawSsid.isNotEmpty
+          ? rawSsid.replaceAll('"', '').trim()
+          : null;
+      final bssid = rawBssid != null && rawBssid.isNotEmpty
+          ? rawBssid.toUpperCase().trim()
+          : null;
+
+      return WifiInfo(ssid: ssid, bssid: bssid);
     } catch (e) {
-      log('WifiZoneService: SSID-Abfrage fehlgeschlagen: $e',
+      log('WifiZoneService: Fehler beim SSID/BSSID-Lesen: $e',
           name: 'WifiZoneService');
-      return null;
+      return const WifiInfo();
     }
   }
 
-  // ── Debug-Hilfe ────────────────────────────────────────────────────────────
-
-  /// Gibt die aktuell verbundene SSID zurück (für UI-Anzeige).
-  Future<String?> currentSsid() => _getCurrentSsid();
-
-  /// Gibt an ob aktuell eine Zone via WiFi aktiv ist.
   bool get isInWifiZone => _currentZoneId != null;
-
-  /// ID der aktuell aktiven WiFi-Zone (null = keine).
   String? get currentWifiZoneId => _currentZoneId;
 }

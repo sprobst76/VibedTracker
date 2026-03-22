@@ -25,13 +25,14 @@ class GeofenceZoneAdapter extends TypeAdapter<GeofenceZone> {
       isActive: fields[5] as bool,
       defaultWorkModeIndex: fields[6] as int,
       wifiSSID: fields[7] as String?,
+      wifiBSSID: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, GeofenceZone obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class GeofenceZoneAdapter extends TypeAdapter<GeofenceZone> {
       ..writeByte(6)
       ..write(obj.defaultWorkModeIndex)
       ..writeByte(7)
-      ..write(obj.wifiSSID);
+      ..write(obj.wifiSSID)
+      ..writeByte(8)
+      ..write(obj.wifiBSSID);
   }
 
   @override
