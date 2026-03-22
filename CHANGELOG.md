@@ -8,9 +8,75 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Geplant
-- Flutter CloudSyncService für App-Integration
-- CryptoService für E2E-Verschlüsselung
-- GitHub Actions für automatisches Server-Deployment
+- Cloud-Backup (Google Drive / iCloud)
+- Mehrsprachigkeit (i18n / l10n)
+- iOS Geofence-Parität
+
+---
+
+## [0.1.0-beta.69] - 2026-03-22
+
+### Tests
+- **Monatsabschluss** (31 Tests): `Settings.monthKey`, `isMonthLocked`, `lockMonth`/`unlockMonth` inkl. Idempotenz, kombinierte Sequenzen, Schaltjahr, Jahreswechsel
+- **PDF-Export + Stundensatz** (35 Tests): PDF-Magic-Bytes, Netto-Berechnung mit/ohne Pausen, Eintrags-Filterung, Projekt-Referenzen, Saldo-Szenarien, Grenzwerte
+
+---
+
+## [0.1.0-beta.68] - 2026-03-22
+
+### Hinzugefügt
+- **PDF-Arbeitszeitnachweis**: Monatlicher Nachweis als A4-PDF (Tabelle: Datum/Beginn/Ende/Pause/Netto/Projekt/Notizen, Soll/Ist/Saldo-Übersicht, Unterschriftenfelder). Export via System-Sharesheet (Druck, Mail, …). Report-Screen Monat-Tab: Download-Icon öffnet Popup "Excel / PDF".
+- **Stundensatz pro Projekt**: Neues Feld `hourlyRate (€/h)` im Projekt-Dialog (Anlegen + Bearbeiten). Report → Projekte-Tab zeigt `Xh × Y€/h = Z€` pro Projekt und Gesamtsumme "Abrechenbar" in der Summary-Card.
+
+---
+
+## [0.1.0-beta.67] - 2026-03-22
+
+### Hinzugefügt
+- **Monatsabschluss**: Monate im Report-Screen (Monat-Tab) abschließen und wieder entsperren. Gesperrte Monate: nicht editierbar/löschbar in History und EntryEdit (oranges Banner, gesperrte Buttons), 🔒-Icon auf Gruppen-Headern in der History. Bulk-Delete überspringt gesperrte Einträge mit Hinweis. Persistenz als `List<String>` in Settings (HiveField 31), Backup-kompatibel.
+
+---
+
+## [0.1.0-beta.66] - 2026-03-22
+
+### Behoben
+- **Ongoing Notification Chronometer**: Ankerpunkt `when = entry.start + completedPauseDuration` — native Android-Chronometer zeigt korrekte Netto-Arbeitszeit (Pausen ausgeschlossen) live ohne Flutter-Timer. Während Pause: statischer Pause-Start-Timestamp. Body-Text-Refresh jede Minute für alle Zustände.
+
+---
+
+## [0.1.0-beta.65] - 2026-03-21
+
+### Hinzugefügt
+- **PC-Präsenzerkennung**: TCP-Probe auf konfigurierbaren Host/Port erkennt ob der Arbeits-PC im Netzwerk aktiv ist. Periodischer Watcher während laufender Session. SnackBar-Aktionen "Pause starten/beenden". Port-Presets (SMB 445, RDP 3389, VNC 5900, SSH 22). Test-Button in Einstellungen. Energieverbrauch: ~1ms TCP-Handshake pro Prüfung.
+
+---
+
+## [0.1.0-beta.64] - 2026-03-20
+
+### Hinzugefügt
+- **BSSID-basierte Raumerkennung**: Geofence-Zonen können zusätzlich zum SSID auch einen BSSID (MAC-Adresse des Access Points) zugewiesen bekommen. "Aktuelles Netz anzeigen"-Button im Zonen-Dialog lädt SSID + BSSID live und bietet "Übernehmen"-Buttons. Matching-Priorität: BSSID > SSID.
+
+---
+
+## [0.1.0-beta.63] - 2026-03-20
+
+### Hinzugefügt
+- **WiFi-SSID-Zonen-Erkennung**: Geofence-Zonen können einem WiFi-SSID zugeordnet werden. Event-driven via `connectivity_plus`-Stream (near-zero Energieverbrauch). Bei ENTER/EXIT gleicher Verarbeitungspfad wie GPS-Geofencing (Re-Entry-Merge, WorkMode, Notifications).
+
+---
+
+## [0.1.0-beta.62] - 2026-03-19
+
+### Hinzugefügt
+- **Swipe-to-Delete + Bulk-Selektion** in der History: Einträge einzeln via Swipe löschen (mit Bestätigung) oder per Long-Press in Bulk-Selektion wechseln und mehrere gleichzeitig löschen.
+- **Automatische Pausenerkennung**: Wenn die App X Minuten im Hintergrund war (konfigurierbar, Standard 15 min) und eine Session lief, wird beim Wiederkehren ein Pause-Dialog angeboten.
+
+---
+
+## [0.1.0-beta.61] - 2026-03-18
+
+### Hinzugefügt
+- **Überstunden-Warnungen**: Push-Notifications wenn das Überstundenkonto konfigurierbare Schwellenwerte über- oder unterschreitet (Standard: +40h / -8h). Zone-basiert (nur bei Zonenübergang, kein Spam).
 
 ---
 
